@@ -1,0 +1,39 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Employee {
+  id                String   @id @default(cuid())
+  name              String
+  email             String   @unique
+  role              String   @default("STAFF") // e.g., MANAGER, STAFF
+  department        String?  // e.g., ER, ICU, Pediatrics, General Medicine
+  shiftDuration     Int?     // e.g., 8, 10, 12 hours
+  workdaysPerMonth  Int?     // max workdays limit per month from Kaggle
+  satisfactionScore Float?   // staff satisfaction score from Kaggle
+  experienceYears   Int?     // years of experience from Kaggle
+  kaggleStaffId     String?  @unique // Kaggle ID e.g., S00000
+  shifts            Shift[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Shift {
+  id         String    @id @default(cuid())
+  title      String    // e.g., "Shift Pagi", "Shift Malam"
+  startTime  DateTime
+  endTime    DateTime
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  status     String    @default("SCHEDULED") // SCHEDULED, COMPLETED, CANCELLED
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
