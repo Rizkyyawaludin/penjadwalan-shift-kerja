@@ -1,17 +1,20 @@
 import React from "react";
 import { getSchedules } from "@/actions/jadwal";
 import { getDatasetStats, KaggleDatasetStats } from "@/actions/dataset";
+import { getEmployees } from "@/actions/karyawan";
 import ScheduleClientView from "@/components/jadwal/ScheduleClientView";
 
 export const dynamic = "force-dynamic";
 
 export default async function JadwalPage() {
-  const [schedulesRes, statsRes] = await Promise.all([
+  const [schedulesRes, statsRes, employeesRes] = await Promise.all([
     getSchedules(),
     getDatasetStats(),
+    getEmployees(),
   ]);
 
   const initialShifts = schedulesRes.success ? schedulesRes.data : [];
+  const initialEmployees = employeesRes.success ? employeesRes.data : [];
   const initialStats: KaggleDatasetStats = statsRes.success && statsRes.data ? statsRes.data : {
     totalImported: 0,
     byDepartment: { ER: 0, ICU: 0, Pediatrics: 0, GeneralMedicine: 0 },
@@ -31,6 +34,7 @@ export default async function JadwalPage() {
       <ScheduleClientView
         initialShifts={initialShifts || []}
         initialStats={initialStats}
+        initialEmployees={initialEmployees || []}
       />
     </div>
   );

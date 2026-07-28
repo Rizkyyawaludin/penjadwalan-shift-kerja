@@ -14,21 +14,30 @@ import {
   Award, 
   Layers, 
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  Save,
+  XCircle
 } from "lucide-react";
 import { importKaggleDataset, getDatasetStats, KaggleDatasetStats } from "@/actions/dataset";
-import { generateAutomaticSchedule, clearAllSchedules, getSchedules } from "@/actions/jadwal";
+import { generateAutomaticSchedule, clearAllSchedules, getSchedules, saveDraftSchedule } from "@/actions/jadwal";
 import { GAOptimizationResult } from "@/lib/ga/shiftOptimizer";
 import GAStatsModal from "./GAStatsModal";
 
 interface ScheduleClientViewProps {
   initialShifts: any[];
   initialStats: KaggleDatasetStats;
+  initialEmployees: any[];
 }
 
-export default function ScheduleClientView({ initialShifts, initialStats }: ScheduleClientViewProps) {
+export default function ScheduleClientView({ initialShifts, initialStats, initialEmployees }: ScheduleClientViewProps) {
   const [shifts, setShifts] = useState(initialShifts);
   const [stats, setStats] = useState<KaggleDatasetStats>(initialStats);
+  const [employees, setEmployees] = useState(initialEmployees);
+  
+  // State Draft Mode
+  const [isDraftMode, setIsDraftMode] = useState(false);
+  const [draftShifts, setDraftShifts] = useState<any[]>([]);
+  const [loadingSaveDraft, setLoadingSaveDraft] = useState(false);
   
   // State Generator
   const [targetDept, setTargetDept] = useState("ALL");
@@ -115,14 +124,65 @@ export default function ScheduleClientView({ initialShifts, initialStats }: Sche
       } else if (res.result) {
         setGaResult(res.result);
         setIsModalOpen(true);
-        setNotification({ type: "success", message: `Jadwal optimal untuk ${daysCount} hari berhasil dibuat dengan Algoritma Genetika!` });
-        await refreshData(targetDept);
+        setDraftShifts(res.draftShifts || []);
+        setIsDraftMode(true);
+        setNotification({ type: "success", message: `Jadwal optimal untuk ${daysCount} hari berhasil dibuat. Silakan periksa atau ubah, lalu klik Simpan & Konfirmasi.` });
       }
     } catch (err) {
       setNotification({ type: "error", message: "Terjadi kesalahan koneksi server." });
     } finally {
       setLoadingGenerate(false);
     }
+  };
+
+  const handleConfirmDraft = async () => {
+    setLoadingSaveDraft(true);
+    setNotification(null);
+    try {
+      const res = await saveDraftSchedule(draftShifts);
+      if (res.success) {
+        setIsDraftMode(false);
+        setDraftShifts([]);
+        setNotification({ type: "success", message: "Jadwal final berhasil dikonfirmasi dan disimpan ke database!" });
+        await refreshData(targetDept);
+      } else {
+        setNotification({ type: "error", message: res.error || "Gagal menyimpan jadwal." });
+      }
+    } catch (err) {
+      setNotification({ type: "error", message: "Terjadi kesalahan server saat menyimpan jadwal." });
+    } finally {
+      setLoadingSaveDraft(false);
+    }
+  };
+
+  const handleCancelDraft = () => {
+    if (!confirm("Apakah Anda yakin ingin membatalkan draft jadwal ini? Data yang belum disimpan akan hilang.")) return;
+    setIsDraftMode(false);
+    setDraftShifts([]);
+    setNotification({ type: "success", message: "Draft jadwal berhasil dibatalkan." });
+  };
+
+  const handleDraftEmployeeChange = (shiftId: string, newEmployeeId: string) => {
+    const selectedEmp = employees.find((e: any) => e.id === newEmployeeId);
+    if (!selectedEmp) return;
+    
+    setDraftShifts(prev => prev.map(shift => {
+      if (shift.id === shiftId) {
+        return {
+          ...shift,
+          employeeId: selectedEmp.id,
+          employee: {
+            id: selectedEmp.id,
+            name: selectedEmp.name,
+            role: selectedEmp.role,
+            department: selectedEmp.department,
+            experienceYears: selectedEmp.experienceYears,
+            kaggleStaffId: selectedEmp.kaggleStaffId
+          }
+        };
+      }
+      return shift;
+    }));
   };
 
   const handleClearSchedules = async () => {
@@ -156,7 +216,8 @@ export default function ScheduleClientView({ initialShifts, initialStats }: Sche
   };
 
   // Kelompokkan shift berdasarkan tanggal untuk tampilan tabel rapi
-  const groupedShifts = shifts.reduce((acc: Record<string, any[]>, shift) => {
+  const displayShifts = isDraftMode ? draftShifts : shifts;
+  const groupedShifts = displayShifts.reduce((acc: Record<string, any[]>, shift) => {
     const dateKey = new Date(shift.startTime).toISOString().split("T")[0];
     if (!acc[dateKey]) acc[dateKey] = [];
     acc[dateKey].push(shift);
@@ -380,11 +441,34 @@ export default function ScheduleClientView({ initialShifts, initialStats }: Sche
           <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
             <Calendar size={18} color="#0f172a" />
             <h3 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f172a", margin: 0 }}>
-              Daftar Jadwal Shift Terbentuk ({shifts.length} Slot)
+              {isDraftMode ? "Mode Draft: Pratinjau Jadwal" : "Daftar Jadwal Shift Terbentuk"} ({displayShifts.length} Slot)
             </h3>
           </div>
 
-          {gaResult && (
+          {isDraftMode ? (
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={handleCancelDraft}
+                disabled={loadingSaveDraft}
+                style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", background: "#fff", color: "var(--danger)", border: "1px solid #fecaca" }}
+              >
+                <XCircle size={14} />
+                <span>Batalkan</span>
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleConfirmDraft}
+                disabled={loadingSaveDraft}
+                style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", background: "#10b981", borderColor: "#10b981" }}
+              >
+                {loadingSaveDraft ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                <span>Konfirmasi & Simpan</span>
+              </button>
+            </div>
+          ) : gaResult && (
             <button
               type="button"
               className="btn btn-secondary"
@@ -397,7 +481,7 @@ export default function ScheduleClientView({ initialShifts, initialStats }: Sche
           )}
         </div>
 
-        {shifts.length === 0 ? (
+        {displayShifts.length === 0 ? (
           <div style={{ padding: "4rem 2rem", textAlign: "center", color: "#64748b" }}>
             <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1rem auto", color: "#94a3b8" }}>
               <Calendar size={28} />
@@ -443,9 +527,38 @@ export default function ScheduleClientView({ initialShifts, initialStats }: Sche
                           </div>
                         </td>
                         <td style={{ padding: "0.85rem 1.25rem" }}>
-                          <div style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.9rem" }}>{shift.employee?.name || "Staf Tidak Dikenal"}</div>
-                          {shift.employee?.experienceYears && (
-                            <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Pengalaman: {shift.employee.experienceYears} Tahun</div>
+                          {isDraftMode ? (
+                            <select
+                              value={shift.employeeId}
+                              onChange={(e) => handleDraftEmployeeChange(shift.id, e.target.value)}
+                              style={{
+                                width: "100%",
+                                padding: "0.4rem",
+                                borderRadius: "0.4rem",
+                                border: "1px solid #cbd5e1",
+                                background: "#fff",
+                                fontSize: "0.85rem",
+                                fontWeight: 500,
+                                color: "#0f172a",
+                                cursor: "pointer"
+                              }}
+                            >
+                              <option value="" disabled>Pilih Staf</option>
+                              {employees
+                                .filter((e: any) => targetDept === "ALL" || e.department === targetDept)
+                                .map((emp: any) => (
+                                <option key={emp.id} value={emp.id}>
+                                  {emp.name} ({emp.experienceYears} thn)
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <>
+                              <div style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.9rem" }}>{shift.employee?.name || "Staf Tidak Dikenal"}</div>
+                              {shift.employee?.experienceYears && (
+                                <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Pengalaman: {shift.employee.experienceYears} Tahun</div>
+                              )}
+                            </>
                           )}
                         </td>
                         <td style={{ padding: "0.85rem 1.25rem" }}>
@@ -470,11 +583,11 @@ export default function ScheduleClientView({ initialShifts, initialStats }: Sche
                             borderRadius: "99px",
                             fontSize: "0.75rem",
                             fontWeight: 700,
-                            background: "#f0fdf4",
-                            color: "#15803d",
-                            border: "1px solid #bbf7d0"
+                            background: isDraftMode ? "#fef3c7" : "#f0fdf4",
+                            color: isDraftMode ? "#d97706" : "#15803d",
+                            border: `1px solid ${isDraftMode ? "#fde68a" : "#bbf7d0"}`
                           }}>
-                            AI SCHEDULED
+                            {isDraftMode ? "DRAFT" : "AI SCHEDULED"}
                           </span>
                         </td>
                       </tr>

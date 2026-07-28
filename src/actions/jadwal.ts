@@ -55,6 +55,7 @@ export async function getSchedules(departmentFilter?: string) {
 export async function generateAutomaticSchedule(params: GenerateScheduleParams): Promise<{
   success: boolean;
   result?: GAOptimizationResult;
+  draftShifts?: any[];
   error?: string;
 }> {
   try {
@@ -152,43 +153,28 @@ export async function generateAutomaticSchedule(params: GenerateScheduleParams):
       return { success: false, error: "Algoritma Genetika gagal menghasilkan konfigurasi jadwal yang valid." };
     }
 
-    // 4. Simpan hasil optimasi ke Database PostgreSQL via Prisma
-    // Pertama, bersihkan jadwal lama pada rentang tanggal dan staf yang terlibat agar tidak tumpang tindih
-    const staffIds = dbStaff.map((s) => s.id);
-    const firstDate = slots[0].startTime;
-    const lastDate = slots[slots.length - 1].endTime;
-
-    await prisma.shift.deleteMany({
-      where: {
-        employeeId: {
-          in: staffIds,
-        },
-        startTime: {
-          gte: firstDate,
-        },
-        endTime: {
-          lte: lastDate,
-        },
-      },
+    // 4. Buat objek Draft Shifts untuk di-preview di UI (tanpa menyimpan ke DB)
+    const draftShifts = gaResult.bestSchedule.map((item, index) => {
+      const emp = dbStaff.find(s => s.id === item.employeeId);
+      return {
+        id: `draft_${index}_${Date.now()}`,
+        title: item.shiftSlot.title,
+        startTime: item.shiftSlot.startTime,
+        endTime: item.shiftSlot.endTime,
+        employeeId: item.employeeId,
+        status: "DRAFT",
+        employee: emp ? {
+          id: emp.id,
+          name: emp.name,
+          role: emp.role,
+          department: emp.department,
+          experienceYears: emp.experienceYears,
+          kaggleStaffId: emp.kaggleStaffId,
+        } : null,
+      };
     });
 
-    // Simpan semua jadwal baru secara batch (createMany)
-    const shiftRecords = gaResult.bestSchedule.map((item) => ({
-      title: item.shiftSlot.title,
-      startTime: item.shiftSlot.startTime,
-      endTime: item.shiftSlot.endTime,
-      employeeId: item.employeeId,
-      status: "SCHEDULED",
-    }));
-
-    await prisma.shift.createMany({
-      data: shiftRecords,
-    });
-
-    revalidatePath("/dashboard/jadwal");
-    revalidatePath("/dashboard/karyawan");
-
-    return { success: true, result: gaResult };
+    return { success: true, result: gaResult, draftShifts };
   } catch (error) {
     console.error("Gagal mengeksekusi penjadwalan otomatis Algoritma Genetika:", error);
     return { success: false, error: "Terjadi kesalahan sistem saat menjalankan optimasi jadwal AI." };
@@ -217,5 +203,57 @@ export async function clearAllSchedules(departmentFilter?: string) {
   } catch (error) {
     console.error("Gagal menghapus semua jadwal:", error);
     return { success: false, error: "Gagal mengosongkan jadwal shift." };
+  }
+}
+
+export async function saveDraftSchedule(draftShifts: any[]) {
+  try {
+    if (!draftShifts || draftShifts.length === 0) {
+      return { success: false, error: "Data draft kosong." };
+    }
+
+    // Identifikasi rentang tanggal dan staff yang terlibat
+    const staffIds = Array.from(new Set(draftShifts.map((s: any) => s.employeeId)));
+    const startDates = draftShifts.map((s: any) => new Date(s.startTime).getTime());
+    const endDates = draftShifts.map((s: any) => new Date(s.endTime).getTime());
+    const firstDate = new Date(Math.min(...startDates));
+    const lastDate = new Date(Math.max(...endDates));
+
+    // Hapus jadwal lama agar tidak tumpang tindih
+    await prisma.shift.deleteMany({
+      where: {
+        employeeId: {
+          in: staffIds,
+        },
+        startTime: {
+          gte: firstDate,
+        },
+        endTime: {
+          lte: lastDate,
+        },
+      },
+    });
+
+    // Simpan jadwal final
+    const shiftRecords = draftShifts.map((item: any) => ({
+      title: item.title,
+      startTime: new Date(item.startTime),
+      endTime: new Date(item.endTime),
+      employeeId: item.employeeId,
+      status: "SCHEDULED",
+    }));
+
+    await prisma.shift.createMany({
+      data: shiftRecords,
+    });
+
+    revalidatePath("/dashboard/jadwal");
+    revalidatePath("/dashboard/karyawan");
+    revalidatePath("/dashboard/kalender");
+
+    return { success: true };
+  } catch (error) {
+    console.error("Gagal menyimpan jadwal hasil konfirmasi:", error);
+    return { success: false, error: "Terjadi kesalahan saat menyimpan jadwal final ke database." };
   }
 }
