@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { CheckCircle2, ShieldCheck, Cpu, Zap, BarChart2, Award, X } from "lucide-react";
 import { GAOptimizationResult } from "@/lib/ga/shiftOptimizer";
 
@@ -11,7 +12,13 @@ interface GAStatsModalProps {
 }
 
 export default function GAStatsModal({ isOpen, onClose, result }: GAStatsModalProps) {
-  if (!isOpen || !result) return null;
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !result || !mounted) return null;
 
   const {
     fitnessScore,
@@ -26,7 +33,7 @@ export default function GAStatsModal({ isOpen, onClose, result }: GAStatsModalPr
   const isHighlyOptimal = fitnessScore >= 9000;
   const fitnessPercent = Math.min(100, Math.max(0, (fitnessScore / 10000) * 100));
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" style={{ maxWidth: "560px" }} onClick={(e) => e.stopPropagation()}>
         {/* Modal Header */}
@@ -202,6 +209,7 @@ export default function GAStatsModal({ isOpen, onClose, result }: GAStatsModalPr
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

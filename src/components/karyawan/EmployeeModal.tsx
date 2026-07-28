@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, Save, AlertCircle, Loader2 } from "lucide-react";
 import { createEmployee, updateEmployee, EmployeeFormData } from "@/actions/karyawan";
 
@@ -17,6 +18,7 @@ export default function EmployeeModal({
   onSuccess,
   employeeToEdit,
 }: EmployeeModalProps) {
+  const [mounted, setMounted] = useState(false);
   const [formData, setFormData] = useState<EmployeeFormData>({
     name: "",
     email: "",
@@ -24,6 +26,10 @@ export default function EmployeeModal({
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (employeeToEdit) {
@@ -42,7 +48,7 @@ export default function EmployeeModal({
     setError(null);
   }, [employeeToEdit, isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,7 +77,7 @@ export default function EmployeeModal({
     }
   };
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         {/* Modal Header */}
@@ -180,6 +186,7 @@ export default function EmployeeModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

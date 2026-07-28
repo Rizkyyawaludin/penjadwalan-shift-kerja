@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { 
   Users, 
   Calendar, 
+  CalendarDays,
+  ListTodo,
   FileText, 
   Settings, 
   Clock, 
@@ -25,10 +27,17 @@ export default function Sidebar() {
       badge: null,
     },
     {
-      label: "Jadwal Shift",
+      label: "Jadwal Shift (Tabel)",
       href: "/dashboard/jadwal",
-      icon: Calendar,
-      active: pathname?.startsWith("/dashboard/jadwal"),
+      icon: ListTodo,
+      active: pathname === "/dashboard/jadwal",
+      badge: null,
+    },
+    {
+      label: "Kalender Shift",
+      href: "/dashboard/kalender",
+      icon: CalendarDays,
+      active: pathname?.startsWith("/dashboard/kalender"),
       badge: null,
     },
     {
@@ -100,48 +109,7 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* User Profile Footer */}
-      <div style={{
-        paddingTop: "1.25rem",
-        borderTop: "1px solid var(--border-light)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: "0.75rem"
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", minWidth: 0 }}>
-          <div style={{
-            width: "36px",
-            height: "36px",
-            borderRadius: "50%",
-            background: "#f1f5f9",
-            border: "1px solid #cbd5e1",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#334155",
-            fontWeight: 600,
-            fontSize: "0.85rem"
-          }}>
-            AU
-          </div>
-          <div className="logo-text" style={{ minWidth: 0 }}>
-            <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              Admin Utama
-            </p>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", color: "#059669", fontSize: "0.75rem", fontWeight: 500 }}>
-              <ShieldCheck size={12} />
-              <span>Superadmin</span>
-            </div>
-          </div>
-        </div>
-        <button 
-          className="btn-icon" 
-          title="Keluar dari sesi"
-        >
-          <LogOut size={18} />
-        </button>
-      </div>
+
     </aside>
   );
 }
