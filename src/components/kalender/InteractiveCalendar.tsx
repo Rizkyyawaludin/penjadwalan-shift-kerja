@@ -50,10 +50,16 @@ export default function InteractiveCalendar({ initialShifts }: { initialShifts: 
   const weekDays = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
   // Helper untuk mendapatkan shift pada tanggal tertentu
+  const pad = (n: number) => n.toString().padStart(2, "0");
   const getShiftsForDate = (date: Date) => {
-    const targetDateString = date.toISOString().split("T")[0];
+    // date adalah local time dari grid kalender
+    const targetDateString = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    
     return filteredShifts.filter(shift => {
-      const shiftDateStr = new Date(shift.startTime).toISOString().split("T")[0];
+      // Waktu shift di server selalu tersimpan dalam UTC sesuai tanggal yang digenerate
+      const shiftDate = new Date(shift.startTime);
+      const shiftDateStr = `${shiftDate.getUTCFullYear()}-${pad(shiftDate.getUTCMonth() + 1)}-${pad(shiftDate.getUTCDate())}`;
+      
       return shiftDateStr === targetDateString;
     });
   };

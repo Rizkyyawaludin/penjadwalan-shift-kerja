@@ -45,7 +45,7 @@ export default function Sidebar() {
       href: "/dashboard/laporan",
       icon: FileText,
       active: pathname?.startsWith("/dashboard/laporan"),
-      badge: "Coming Soon",
+      badge: null,
     },
     {
       label: "Pengaturan",
@@ -77,9 +77,6 @@ export default function Sidebar() {
           <h1 style={{ fontSize: "1.05rem", fontWeight: 700, letterSpacing: "-0.02em", color: "#0f172a", lineHeight: 1.2 }}>
             ShiftMaster
           </h1>
-          <span style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 600, letterSpacing: "0.03em", textTransform: "uppercase" }}>
-            Pro Admin
-          </span>
         </div>
       </div>
 

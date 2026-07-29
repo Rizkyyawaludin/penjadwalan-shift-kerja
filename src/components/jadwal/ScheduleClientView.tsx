@@ -42,9 +42,12 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
   // State Generator
   const [targetDept, setTargetDept] = useState("ALL");
   const [startDate, setStartDate] = useState(() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split("T")[0];
+    const today = new Date();
+    // Gunakan tanggal lokal klien sebagai default
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   });
   const [daysCount, setDaysCount] = useState<number>(7);
   const [selectedShiftTypes, setSelectedShiftTypes] = useState<string[]>(["Shift Pagi", "Shift Siang", "Shift Malam"]);
@@ -207,12 +210,12 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
 
   const formatDateTime = (dateVal: string | Date) => {
     const d = new Date(dateVal);
-    return d.toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+    return d.toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
   };
 
   const formatTime = (dateVal: string | Date) => {
     const d = new Date(dateVal);
-    return d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
   };
 
   // Kelompokkan shift berdasarkan tanggal untuk tampilan tabel rapi

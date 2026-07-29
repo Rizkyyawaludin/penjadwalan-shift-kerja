@@ -98,7 +98,7 @@ export async function importKaggleDataset(targetDepartment?: string, limitPerDep
       const cols = line.split(",");
       const dept = cols[1];
       if (!deptCounts[dept]) deptCounts[dept] = 0;
-      
+
       if (deptCounts[dept] < limitPerDept) {
         selectedLines.push(line);
         deptCounts[dept]++;
@@ -120,7 +120,16 @@ export async function importKaggleDataset(targetDepartment?: string, limitPerDep
 
       const name = generateRealisticName(staffId, department, i);
       const email = `${staffId.toLowerCase()}@shiftmaster.pro`;
-      const role = experienceYears >= 12 ? "MANAGER" : "STAFF";
+      let role = "Perawat"; // Default untuk ER & ICU
+      
+      if (department === "General Medicine" || department === "Pediatrics") {
+        role = "Dokter";
+      }
+
+      // Klasifikasikan tingkat senioritas berdasarkan pengalaman
+      if (experienceYears >= 10) {
+        role = `Senior ${role}`; // Hasil: "Senior Dokter" atau "Senior Perawat"
+      }
 
       await prisma.employee.upsert({
         where: { kaggleStaffId: staffId },
