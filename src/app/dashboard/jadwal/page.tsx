@@ -22,7 +22,7 @@ export default async function JadwalPage() {
 
   return (
     <div style={{ paddingBottom: "3rem" }}>
-      <div style={{ marginBottom: "1.5rem" }}>
+      <div className="no-print" style={{ marginBottom: "1.5rem" }}>
         <h1 style={{ fontSize: "1.75rem", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.5px" }}>
           Jadwal Shift Kerja Otomatis
         </h1>

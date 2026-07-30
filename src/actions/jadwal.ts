@@ -97,9 +97,12 @@ export async function generateAutomaticSchedule(params: GenerateScheduleParams):
     // 2. Buat daftar slot shift berdasarkan hari dan jenis shift
     const slots: ShiftSlot[] = [];
     const baseDate = new Date(startDate);
-    
-    // Tentukan jumlah staf per slot: optimal 2, minimal 1
-    const requiredCountPerSlot = Math.max(1, Math.min(3, Math.floor(dbStaff.length / (selectedShiftTypes.length * 2))));
+    // Tentukan jumlah staf per slot agar rasio kerja seimbang.
+    // Target normal: seorang staf bekerja ~20 hari dalam sebulan (sekitar 66% dari total hari).
+    // Jadi dalam 1 hari, sekitar 66% staf di departemen tersebut harus masuk kerja.
+    const targetDailyWorkingRatio = 0.66; 
+    const ratioPerShift = targetDailyWorkingRatio / selectedShiftTypes.length;
+    const requiredCountPerSlot = Math.max(1, Math.round(dbStaff.length * ratioPerShift));
 
     for (let i = 0; i < daysCount; i++) {
       const currentDate = new Date(baseDate);
@@ -120,7 +123,7 @@ export async function generateAutomaticSchedule(params: GenerateScheduleParams):
         } else if (shiftType === "Shift Malam") {
           startHour = 0;
           endHour = 8;
-          nextDay = true;
+          nextDay = false; // 00:00 hingga 08:00 ada di hari yang sama
         }
 
         const startTime = new Date(`${dateStr}T00:00:00.000Z`);

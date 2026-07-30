@@ -16,7 +16,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Save,
-  XCircle
+  XCircle,
+  Printer
 } from "lucide-react";
 import { importKaggleDataset, getDatasetStats, KaggleDatasetStats } from "@/actions/dataset";
 import { generateAutomaticSchedule, clearAllSchedules, getSchedules, saveDraftSchedule } from "@/actions/jadwal";
@@ -208,6 +209,40 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
     }
   };
 
+  const handleExportCSV = () => {
+    const headers = ["Tanggal", "Shift", "Waktu Mulai", "Waktu Selesai", "Nama Karyawan", "Departemen", "Kaggle ID"];
+    
+    const rows = shifts.map(shift => {
+      const date = formatDateTime(shift.startTime).split(",")[0];
+      const startTime = formatTime(shift.startTime);
+      const endTime = formatTime(shift.endTime);
+      
+      return [
+        `"${date}"`,
+        `"${shift.title}"`,
+        `"${startTime}"`,
+        `"${endTime}"`,
+        `"${shift.employee?.name || "-"}"`,
+        `"${shift.employee?.department || "Umum"}"`,
+        `"${shift.employee?.kaggleStaffId || "-"}"`
+      ];
+    });
+    
+    const csvContent = [headers.join(","), ...rows.map(row => row.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Jadwal_Shift_${targetDept}_${startDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handlePrintPDF = () => {
+    window.print();
+  };
+
   const formatDateTime = (dateVal: string | Date) => {
     const d = new Date(dateVal);
     return d.toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
@@ -229,6 +264,56 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      <style dangerouslySetInnerHTML={{__html: `
+        @media print {
+          /* Sembunyikan elemen bawaan dashboard dan elemen kontrol */
+          .sidebar-nav, .glass-header, .no-print {
+            display: none !important;
+          }
+          /* Izinkan scrolling dan hapus pembatas tinggi (height) untuk Pagination */
+          body, html, .dashboard-layout, .main-content, .content-body, .card, div {
+            overflow: visible !important;
+            height: auto !important;
+            min-height: auto !important;
+          }
+          /* Maksimalkan lebar kertas */
+          .main-content {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+          }
+          .content-body {
+            padding: 0 !important;
+          }
+          /* Styling tabel khusus cetak */
+          table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+            page-break-inside: auto;
+          }
+          tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+          th {
+            background-color: #f1f5f9 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          th, td {
+            border: 1px solid #cbd5e1 !important;
+            padding: 8px 12px !important;
+          }
+          .print-header {
+            display: block !important;
+            margin-bottom: 20px;
+            text-align: center;
+          }
+        }
+        .print-header {
+          display: none;
+        }
+      `}} />
       
       {/* Notifikasi Banner */}
       {notification && (
@@ -250,7 +335,7 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
       )}
 
       {/* Bagian 1: Dataset Kaggle Integration Card */}
-      <div className="card" style={{ background: "#ffffff", border: "1px solid #e2e8f0" }}>
+      <div className="card no-print" style={{ background: "#ffffff", border: "1px solid #e2e8f0" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
@@ -313,7 +398,7 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
       </div>
 
       {/* Bagian 2: AI Schedule Generator Controls */}
-      <div className="card" style={{ background: "#ffffff", border: "1px solid #e2e8f0" }}>
+      <div className="card no-print" style={{ background: "#ffffff", border: "1px solid #e2e8f0" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "1.25rem" }}>
           <div style={{ padding: "0.4rem", borderRadius: "0.4rem", background: "#0f172a", color: "#ffffff" }}>
             <Sparkles size={18} />
@@ -439,8 +524,18 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
       </div>
 
       {/* Bagian 3: Hasil Jadwal Shift */}
-      <div className="card" style={{ background: "#ffffff", border: "1px solid #e2e8f0", padding: 0, overflow: "hidden" }}>
-        <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div className="card print-area" style={{ background: "#ffffff", border: "1px solid #e2e8f0", padding: 0, overflow: "hidden" }}>
+        
+        {/* Print Header untuk PDF */}
+        <div className="print-header">
+          <h2 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>Jadwal Shift Karyawan</h2>
+          <p style={{ fontSize: "0.9rem", color: "#64748b", margin: "4px 0 0 0" }}>
+            Departemen: {targetDept === "ALL" ? "Semua Departemen" : targetDept} | Tanggal Mulai: {startDate}
+          </p>
+          <hr style={{ margin: "1rem 0", borderTop: "2px solid #0f172a" }} />
+        </div>
+
+        <div className="no-print" style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
             <Calendar size={18} color="#0f172a" />
             <h3 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f172a", margin: 0 }}>
@@ -471,16 +566,42 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
                 <span>Konfirmasi & Simpan</span>
               </button>
             </div>
-          ) : gaResult && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setIsModalOpen(true)}
-              style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem" }}
-            >
-              <Award size={14} />
-              <span>Lihat Laporan AI</span>
-            </button>
+          ) : (
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              {gaResult && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setIsModalOpen(true)}
+                  style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem" }}
+                >
+                  <Award size={14} />
+                  <span>Lihat Laporan AI</span>
+                </button>
+              )}
+              {shifts.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={handleExportCSV}
+                    style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", background: "#fff", color: "#0f172a", border: "1px solid #cbd5e1" }}
+                  >
+                    <Download size={14} />
+                    <span>Ekspor CSV</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handlePrintPDF}
+                    style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", background: "#2563eb", borderColor: "#2563eb" }}
+                  >
+                    <Printer size={14} />
+                    <span>Cetak PDF</span>
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </div>
 

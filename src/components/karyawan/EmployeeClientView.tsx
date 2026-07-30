@@ -21,6 +21,9 @@ export interface EmployeeData {
   name: string;
   email: string;
   role: string;
+  department?: string | null;
+  experienceYears?: number | null;
+  satisfactionScore?: number | null;
   createdAt: Date | string;
   _count: {
     shifts: number;
@@ -31,8 +34,7 @@ interface EmployeeClientViewProps {
   initialEmployees: EmployeeData[];
   stats: {
     total: number;
-    managers: number;
-    staff: number;
+    departmentCounts: Record<string, number>;
   };
 }
 
@@ -116,7 +118,7 @@ export default function EmployeeClientView({
       </div>
 
       {/* Statistics Grid */}
-      <div className="stats-grid">
+      <div className="stats-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
         <div className="stat-card hover-lift">
           <div className="stat-info">
             <h3>Total Karyawan</h3>
@@ -127,25 +129,28 @@ export default function EmployeeClientView({
           </div>
         </div>
 
-        <div className="stat-card hover-lift">
-          <div className="stat-info">
-            <h3>Koordinator (Manager)</h3>
-            <div className="stat-value" style={{ color: "#6b21a8" }}>{stats.managers}</div>
-          </div>
-          <div className="stat-icon" style={{ background: "#f3e8ff", color: "#7e22ce", borderColor: "#e9d5ff" }}>
-            <ShieldCheck size={22} />
-          </div>
-        </div>
+        {Object.entries(stats.departmentCounts || {}).map(([dept, count], idx) => {
+          // Buat warna berbeda per departemen untuk estetika
+          const colors = [
+            { text: "#0369a1", bg: "#e0f2fe", border: "#bae6fd" },
+            { text: "#7e22ce", bg: "#f3e8ff", border: "#e9d5ff" },
+            { text: "#047857", bg: "#d1fae5", border: "#a7f3d0" },
+            { text: "#b45309", bg: "#fef3c7", border: "#fde68a" },
+          ];
+          const color = colors[idx % colors.length];
 
-        <div className="stat-card hover-lift">
-          <div className="stat-info">
-            <h3>Staff Operasional</h3>
-            <div className="stat-value" style={{ color: "#0369a1" }}>{stats.staff}</div>
-          </div>
-          <div className="stat-icon" style={{ background: "#e0f2fe", color: "#0284c7", borderColor: "#bae6fd" }}>
-            <UserCheck size={22} />
-          </div>
-        </div>
+          return (
+            <div key={dept} className="stat-card hover-lift">
+              <div className="stat-info">
+                <h3>{dept}</h3>
+                <div className="stat-value" style={{ color: color.text }}>{count}</div>
+              </div>
+              <div className="stat-icon" style={{ background: color.bg, color: color.text, borderColor: color.border }}>
+                <UserCheck size={22} />
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Toolbar: Search & Filter */}
@@ -187,9 +192,9 @@ export default function EmployeeClientView({
             <tr>
               <th>Informasi Karyawan</th>
               <th>Alamat Email</th>
-              <th>Jabatan (Role)</th>
+              <th>Pengalaman Kerja</th>
+              <th>Departemen / Unit</th>
               <th>Shift Assigned</th>
-              <th>Tanggal Daftar</th>
               <th style={{ textAlign: "right", paddingRight: "1.5rem" }}>Aksi</th>
             </tr>
           </thead>
@@ -246,19 +251,22 @@ export default function EmployeeClientView({
                   </td>
                   <td style={{ color: "#475569" }}>{emp.email}</td>
                   <td>
-                    <span className={`badge ${emp.role === "MANAGER" ? "badge-manager" : "badge-staff"}`}>
-                      {emp.role === "MANAGER" ? <ShieldCheck size={12} /> : <UserCheck size={12} />}
-                      <span>{emp.role}</span>
-                    </span>
+                    {emp.experienceYears !== null && emp.experienceYears !== undefined ? (
+                      <span style={{ fontWeight: 500, color: "#475569" }}>
+                        {emp.experienceYears} tahun
+                      </span>
+                    ) : (
+                      <span style={{ color: "#94a3b8" }}>-</span>
+                    )}
+                  </td>
+                  <td>
+                    <span style={{ fontWeight: 600, color: "#0f172a" }}>{emp.department || "Umum"}</span>
                   </td>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "#0f172a", fontWeight: 500 }}>
                       <Calendar size={15} style={{ color: "#64748b" }} />
                       <span>{emp._count.shifts} shift</span>
                     </div>
-                  </td>
-                  <td style={{ color: "#64748b", fontSize: "0.8rem" }}>
-                    {formatDate(emp.createdAt)}
                   </td>
                   <td style={{ textAlign: "right", paddingRight: "1.25rem" }}>
                     <div style={{ display: "inline-flex", gap: "0.35rem" }}>

@@ -111,36 +111,39 @@ export default function LaporanClientView({ initialShifts, employees }: LaporanC
     <>
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
-          body * {
-            visibility: hidden;
-          }
-          /* Tampilkan area laporan saja saat di-print */
-          .print-area, .print-area * {
-            visibility: visible;
-          }
-          .print-area {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            padding: 20px;
-          }
-          /* Sembunyikan elemen UI kontrol saat di-print */
-          .no-print {
+          /* Sembunyikan elemen bawaan dashboard dan elemen kontrol */
+          .sidebar-nav, .glass-header, .no-print {
             display: none !important;
           }
-          .card {
-            border: none !important;
-            box-shadow: none !important;
+          /* Izinkan scrolling dan hapus pembatas tinggi (height) untuk Pagination */
+          body, html, .dashboard-layout, .main-content, .content-body, .card, div {
+            overflow: visible !important;
+            height: auto !important;
+            min-height: auto !important;
           }
-          /* Buat header tabel tetap terlihat bagus */
+          /* Maksimalkan lebar kertas */
+          .main-content {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+          }
+          .content-body {
+            padding: 0 !important;
+          }
+          /* Styling tabel khusus cetak */
           table {
             border-collapse: collapse !important;
             width: 100% !important;
+            page-break-inside: auto;
+          }
+          tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
           }
           th {
             background-color: #f1f5f9 !important;
             -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
           th, td {
             border: 1px solid #cbd5e1 !important;

@@ -21,16 +21,18 @@ export async function getEmployees() {
     });
 
     const total = employees.length;
-    const managers = employees.filter((e) => e.role === "MANAGER").length;
-    const staff = employees.filter((e) => e.role === "STAFF").length;
+    const departmentCounts: Record<string, number> = {};
+    employees.forEach((e) => {
+      const dept = e.department || "Umum";
+      departmentCounts[dept] = (departmentCounts[dept] || 0) + 1;
+    });
 
     return {
       success: true,
       data: employees,
       stats: {
         total,
-        managers,
-        staff,
+        departmentCounts,
       },
     };
   } catch (error) {
@@ -39,7 +41,7 @@ export async function getEmployees() {
       success: false,
       error: "Gagal mengambil data karyawan dari database.",
       data: [],
-      stats: { total: 0, managers: 0, staff: 0 },
+      stats: { total: 0, departmentCounts: {} },
     };
   }
 }

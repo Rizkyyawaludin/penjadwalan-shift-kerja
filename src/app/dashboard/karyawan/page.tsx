@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function KaryawanPage() {
-  const { data = [], stats = { total: 0, managers: 0, staff: 0 } } = await getEmployees();
+  const { data = [], stats = { total: 0, departmentCounts: {} } } = await getEmployees();
 
   return <EmployeeClientView initialEmployees={data} stats={stats} />;
 }

@@ -153,15 +153,24 @@ export class ShiftGeneticOptimizer {
 
   private generateRandomChromosome(): Chromosome {
     const chromosome: Chromosome = [];
+    let staffPool = [...this.staff].sort(() => Math.random() - 0.5);
+
     for (const slot of this.slots) {
       const assigned: string[] = [];
-      const available = [...this.staff];
       
       for (let c = 0; c < slot.requiredCount; c++) {
-        if (available.length === 0) break;
-        const randomIndex = Math.floor(Math.random() * available.length);
-        assigned.push(available[randomIndex].id);
-        available.splice(randomIndex, 1); // hindari 1 orang double di slot shift yang sama
+        if (staffPool.length === 0) {
+          staffPool = [...this.staff].sort(() => Math.random() - 0.5);
+        }
+        
+        // Cari staf di pool yang belum masuk ke slot ini
+        let idx = staffPool.findIndex(s => !assigned.includes(s.id));
+        if (idx === -1) {
+          idx = 0; // fallback darurat
+        }
+        
+        assigned.push(staffPool[idx].id);
+        staffPool.splice(idx, 1);
       }
       chromosome.push(assigned);
     }
@@ -247,9 +256,18 @@ export class ShiftGeneticOptimizer {
       const avg = counts.reduce((a, b) => a + b, 0) / counts.length;
       const variance = counts.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / counts.length;
       
-      if (variance > 4) {
+      if (variance > 1) { // Lebih sensitif terhadap ketidakadilan
         violations.workloadImbalance = Math.round(variance);
-        score -= variance * 15; // Pinalti varians tinggi agar shift merata
+        score -= variance * 250; // Pinalti sangat besar agar shift merata
+      }
+      
+      // Hard Constraint: Staf tidak boleh mendapat 0 shift (kecuali jumlah shift < jumlah staf)
+      const totalRequiredShifts = this.slots.reduce((sum, slot) => sum + slot.requiredCount, 0);
+      if (totalRequiredShifts >= this.staff.length) {
+        const zeroShiftCount = counts.filter(c => c === 0).length;
+        if (zeroShiftCount > 0) {
+          score -= zeroShiftCount * 1000; // Pinalti raksasa jika ada yang dianggurkan
+        }
       }
     }
 

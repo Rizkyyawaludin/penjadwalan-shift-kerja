@@ -1,5 +1,5 @@
 import React from "react";
-import LaporanClientView from "@/components/laporan/LaporanClientView";
+import DashboardClientView from "@/components/dashboard/DashboardClientView";
 import { getSchedules } from "@/actions/jadwal";
 import { getEmployees } from "@/actions/karyawan";
 import { AlertCircle } from "lucide-react";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 export const revalidate = 0;
 
-export default async function LaporanPage() {
+export default async function DashboardHomePage() {
   const [schedulesRes, employeesRes] = await Promise.all([
     getSchedules(),
     getEmployees()
@@ -18,9 +18,9 @@ export default async function LaporanPage() {
     return (
       <div style={{ padding: "3rem", textAlign: "center", background: "#ffffff", borderRadius: "1rem", border: "1px solid #e2e8f0" }}>
         <AlertCircle size={48} color="#94a3b8" style={{ margin: "0 auto 1rem auto" }} />
-        <h3 style={{ fontSize: "1.1rem", fontWeight: 600, color: "#0f172a" }}>Gagal Memuat Data Laporan</h3>
+        <h3 style={{ fontSize: "1.1rem", fontWeight: 600, color: "#0f172a" }}>Gagal Memuat Data Dashboard</h3>
         <p style={{ color: "#64748b", marginTop: "0.5rem" }}>
-          {schedulesRes.error || employeesRes.error || "Terjadi kesalahan sistem."}
+          {schedulesRes.error || employeesRes.error || "Terjadi kesalahan sistem saat memuat data."}
         </p>
       </div>
     );
@@ -28,17 +28,17 @@ export default async function LaporanPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-      <div className="no-print">
+      <div>
         <h1 style={{ fontSize: "1.75rem", fontWeight: 800, color: "var(--text-main)", letterSpacing: "-0.025em" }}>
-          Laporan Beban Kerja
+          Dashboard
         </h1>
         <p style={{ color: "var(--text-muted)", fontSize: "0.95rem", marginTop: "0.25rem" }}>
-          Rekapitulasi total jam kerja karyawan dan fitur ekspor dokumen.
+          Ringkasan data staf dan jadwal hari ini.
         </p>
       </div>
 
-      <LaporanClientView 
-        initialShifts={schedulesRes.data || []} 
+      <DashboardClientView 
+        shifts={schedulesRes.data || []} 
         employees={employeesRes.data || []} 
       />
     </div>

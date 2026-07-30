@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
+  LayoutDashboard,
   Users, 
   Calendar, 
   CalendarDays,
@@ -19,6 +20,13 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   const navItems = [
+    {
+      label: "Dashboard",
+      href: "/dashboard",
+      icon: LayoutDashboard,
+      active: pathname === "/dashboard",
+      badge: null,
+    },
     {
       label: "Kelola Karyawan",
       href: "/dashboard/karyawan",
