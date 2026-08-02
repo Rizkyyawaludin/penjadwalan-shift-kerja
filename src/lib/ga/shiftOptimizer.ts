@@ -14,7 +14,7 @@ export interface StaffMember {
 export interface ShiftSlot {
   id: string; // unique identifier for the slot in the generation period
   date: string; // YYYY-MM-DD
-  title: string; // "Shift Pagi", "Shift Siang", "Shift Malam"
+  title: string; // "Shift Pagi", "Shift Sore", "Shift Malam"
   startTime: Date;
   endTime: Date;
   requiredCount: number; // jumlah staf yang dibutuhkan pada slot ini (default 2)
@@ -48,14 +48,20 @@ type Chromosome = string[][];
 export class ShiftGeneticOptimizer {
   private staff: StaffMember[];
   private slots: ShiftSlot[];
-  private populationSize: number = 60;
-  private maxGenerations: number = 80;
+  private populationSize: number = 80; // Ditingkatkan agar variasi lebih banyak
+  private maxGenerations: number = 200; // Ditingkatkan drastis agar ada waktu untuk mengeliminasi bentrok pada jadwal 30 hari
   private mutationRate: number = 0.08;
   private tournamentSize: number = 3;
+
+  private staffMap: Map<string, StaffMember>;
+  private totalDaysInPeriod: number = 0;
+  private maxShiftsBy40HourRule: number = 0;
+  private totalRequiredShifts: number = 0;
 
   constructor(staff: StaffMember[], slots: ShiftSlot[]) {
     this.staff = staff;
     this.slots = slots;
+    this.staffMap = new Map(staff.map(s => [s.id, s]));
   }
 
   public optimize(department: string): GAOptimizationResult {
@@ -72,6 +78,11 @@ export class ShiftGeneticOptimizer {
         staffCount: this.staff.length,
       };
     }
+
+    // Precompute invariant constraints to speed up evaluateFitness (run 16,000+ times)
+    this.totalDaysInPeriod = new Set(this.slots.map(s => s.date)).size;
+    this.maxShiftsBy40HourRule = Math.max(1, Math.floor((Math.max(this.totalDaysInPeriod, 7) / 7) * 5));
+    this.totalRequiredShifts = this.slots.reduce((sum, slot) => sum + slot.requiredCount, 0);
 
     // 1. Inisialisasi Populasi Awal
     let population: Chromosome[] = [];
@@ -154,22 +165,64 @@ export class ShiftGeneticOptimizer {
   private generateRandomChromosome(): Chromosome {
     const chromosome: Chromosome = [];
     let staffPool = [...this.staff].sort(() => Math.random() - 0.5);
+    
+    // Track siapa saja yang sudah ditugaskan pada suatu tanggal di kromosom ini
+    const dailyAssigned: Record<string, Set<string>> = {};
+    const empSlots: Record<string, ShiftSlot[]> = {};
+    const staffShiftCountMap: Record<string, number> = {};
+    for (const emp of this.staff) {
+      empSlots[emp.id] = [];
+      staffShiftCountMap[emp.id] = 0;
+    }
+
+    // Aturan Jam Kerja: Maksimal 40 jam per minggu (5 shift x 8 jam)
+    const maxShiftsBy40HourRule = this.maxShiftsBy40HourRule;
 
     for (const slot of this.slots) {
       const assigned: string[] = [];
+      if (!dailyAssigned[slot.date]) {
+        dailyAssigned[slot.date] = new Set();
+      }
       
       for (let c = 0; c < slot.requiredCount; c++) {
         if (staffPool.length === 0) {
           staffPool = [...this.staff].sort(() => Math.random() - 0.5);
         }
         
-        // Cari staf di pool yang belum masuk ke slot ini
-        let idx = staffPool.findIndex(s => !assigned.includes(s.id));
+        // Cari staf di pool yang belum masuk ke slot ini DAN belum kerja di HARI ini
+        // SERTA memiliki gap istirahat minimal 8 jam dari shift sebelumnya/sesudahnya
+        let idx = staffPool.findIndex(s => {
+          if (assigned.includes(s.id) || dailyAssigned[slot.date].has(s.id)) return false;
+          if (staffShiftCountMap[s.id] >= maxShiftsBy40HourRule) return false; // Cek batas max 40 jam kerja (5 shift)
+          
+          for (const assignedSlot of empSlots[s.id]) {
+            const gap1 = slot.startTime.getTime() - assignedSlot.endTime.getTime();
+            const gap2 = assignedSlot.startTime.getTime() - slot.endTime.getTime();
+            const gap = Math.max(gap1, gap2); 
+            if (gap < 8 * 60 * 60 * 1000) return false; // Istirahat kurang dari 8 jam
+          }
+          return true;
+        });
+        
+        // Fallback 1: abaikan rest time gap, tapi tetap beda hari & patuhi batas max 40 jam
         if (idx === -1) {
-          idx = 0; // fallback darurat
+          idx = staffPool.findIndex(s => !assigned.includes(s.id) && !dailyAssigned[slot.date].has(s.id) && staffShiftCountMap[s.id] < maxShiftsBy40HourRule);
+        }
+        // Fallback 2: terpaksa abaikan hari dan batas jam jika sangat kekurangan staf
+        if (idx === -1) {
+          idx = staffPool.findIndex(s => !assigned.includes(s.id) && !dailyAssigned[slot.date].has(s.id));
+        }
+        // Fallback terakhir
+        if (idx === -1) {
+          idx = 0;
         }
         
-        assigned.push(staffPool[idx].id);
+        const empId = staffPool[idx].id;
+        assigned.push(empId);
+        dailyAssigned[slot.date].add(empId); // Catat bahwa dia sudah kerja di hari ini
+        empSlots[empId].push(slot); // Catat jam slot kerjanya
+        staffShiftCountMap[empId]++; // Tambah hitungan shift (8 jam)
+        
         staffPool.splice(idx, 1);
       }
       chromosome.push(assigned);
@@ -189,9 +242,11 @@ export class ShiftGeneticOptimizer {
     // Peta hitungan kerja staf
     const staffShiftCount: Record<string, number> = {};
     const staffWorkDays: Record<string, Set<string>> = {};
+    const empSlotsMap: Record<string, ShiftSlot[]> = {};
     for (const emp of this.staff) {
       staffShiftCount[emp.id] = 0;
       staffWorkDays[emp.id] = new Set();
+      empSlotsMap[emp.id] = [];
     }
 
     // Cek per hari untuk Double Shift (1 orang di 2 shift berbeda pada hari yang sama)
@@ -210,23 +265,22 @@ export class ShiftGeneticOptimizer {
         if (staffWorkDays[empId]) {
           staffWorkDays[empId].add(slot.date);
         }
+        empSlotsMap[empId].push(slot); // Kumpulkan slot per staf
 
         // Hard Constraint 1: Double Shift check
         if (dailyAssigned[slot.date].has(empId)) {
           violations.doubleShift++;
-          score -= 600; // Pinalti sangat berat untuk double shift
+          score -= 5000; // Pinalti sangat fatal untuk double shift (ditingkatkan agar tidak bisa dikalahkan oleh bonus)
         } else {
           dailyAssigned[slot.date].add(empId);
         }
 
         // Soft Constraint 1: Experience Matching untuk Shift Malam / ICU / ER
-        const emp = this.staff.find((s) => s.id === empId);
+        const emp = this.staffMap.get(empId);
         if (emp) {
           const exp = emp.experienceYears || 5;
           if (slot.title === "Shift Malam" || emp.department === "ICU" || emp.department === "ER") {
-            if (exp >= 7) {
-              score += 25; // Bonus jika staf senior menjaga shift berat
-            } else if (exp < 3) {
+            if (exp < 3) {
               violations.experienceMismatch++;
               score -= 40; // Penalti ringan jika terlalu junior sendiri di shift malam
             }
@@ -235,18 +289,36 @@ export class ShiftGeneticOptimizer {
       }
     }
 
-    // Hard Constraint 2: Max Workdays Exceeded dari Dataset Kaggle
-    const totalDaysInPeriod = new Set(this.slots.map((s) => s.date)).size;
+    // Hard Constraint 1.5: Minimum Rest Time (8 hours) check
+    // Ini mencegah Shift Sore hari ini dilanjut Shift Malam keesokan harinya tanpa jeda
     for (const emp of this.staff) {
-      const daysWorked = staffWorkDays[emp.id]?.size || 0;
-      const maxAllowed = emp.workdaysPerMonth || 20;
-      
-      // Proposional batas kerja jika periode penjadwalan kurang dari sebulan
-      const proportionalMax = Math.ceil((maxAllowed / 30) * Math.max(totalDaysInPeriod, 7)) + 1;
+      // Karena slots dikumpulkan secara kronologis di perulangan atas, empSlotsMap[emp.id] sudah terurut.
+      // Menghapus .sort() di sini menghemat jutaan operasi CPU!
+      const slots = empSlotsMap[emp.id];
+      for (let i = 1; i < slots.length; i++) {
+        const gapHours = (slots[i].startTime.getTime() - slots[i-1].endTime.getTime()) / (1000 * 60 * 60);
+        if (gapHours < 8) {
+          violations.doubleShift++; // Kita gabungkan ke counter doubleShift karena sama-sama pelanggaran waktu istirahat
+          score -= 5000; 
+        }
+      }
+    }
 
-      if (daysWorked > proportionalMax) {
+    // Hard Constraint 2: Max 40 Jam Kerja (5 Shift) & Max Workdays Exceeded dari Dataset Kaggle
+    // Menggunakan variabel global yang sudah dikalkulasi 1x di atas
+    for (const emp of this.staff) {
+      const totalShifts = staffShiftCount[emp.id] || 0;
+      const maxAllowedKaggle = emp.workdaysPerMonth || 20;
+
+      // Proposional batas kerja Kaggle jika periode penjadwalan kurang dari sebulan
+      const proportionalKaggle = Math.ceil((maxAllowedKaggle / 30) * Math.max(this.totalDaysInPeriod, 7)) + 1;
+
+      // Gunakan aturan yang paling ketat antara limit 40 jam atau limit bulanan Kaggle
+      const strictLimit = Math.min(this.maxShiftsBy40HourRule, proportionalKaggle);
+
+      if (totalShifts > strictLimit) {
         violations.maxWorkdaysExceeded++;
-        score -= 350 * (daysWorked - proportionalMax);
+        score -= 2000 * (totalShifts - strictLimit); // Penalti sangat berat jika melebihi batas jam kerja
       }
     }
 
@@ -255,15 +327,14 @@ export class ShiftGeneticOptimizer {
     if (counts.length > 0) {
       const avg = counts.reduce((a, b) => a + b, 0) / counts.length;
       const variance = counts.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / counts.length;
-      
+
       if (variance > 1) { // Lebih sensitif terhadap ketidakadilan
         violations.workloadImbalance = Math.round(variance);
         score -= variance * 250; // Pinalti sangat besar agar shift merata
       }
-      
+
       // Hard Constraint: Staf tidak boleh mendapat 0 shift (kecuali jumlah shift < jumlah staf)
-      const totalRequiredShifts = this.slots.reduce((sum, slot) => sum + slot.requiredCount, 0);
-      if (totalRequiredShifts >= this.staff.length) {
+      if (this.totalRequiredShifts >= this.staff.length) {
         const zeroShiftCount = counts.filter(c => c === 0).length;
         if (zeroShiftCount > 0) {
           score -= zeroShiftCount * 1000; // Pinalti raksasa jika ada yang dianggurkan
@@ -310,7 +381,7 @@ export class ShiftGeneticOptimizer {
       if (Math.random() < this.mutationRate) {
         const slot = this.slots[i];
         const currentAssigned = mutated[i];
-        
+
         // Cari staf yang belum ditugaskan di slot ini
         const unassignedStaff = this.staff.filter((s) => !currentAssigned.includes(s.id));
         if (unassignedStaff.length > 0 && currentAssigned.length > 0) {

@@ -41,13 +41,7 @@ export default function Sidebar() {
       active: pathname === "/dashboard/jadwal",
       badge: null,
     },
-    {
-      label: "Kalender Shift",
-      href: "/dashboard/kalender",
-      icon: CalendarDays,
-      active: pathname?.startsWith("/dashboard/kalender"),
-      badge: null,
-    },
+
     {
       label: "Laporan & Rekap",
       href: "/dashboard/laporan",

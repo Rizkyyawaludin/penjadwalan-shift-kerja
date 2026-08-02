@@ -9,11 +9,12 @@ interface DashboardClientViewProps {
 }
 
 export default function DashboardClientView({ shifts, employees }: DashboardClientViewProps) {
-  // Use state for "today" so it doesn't cause hydration mismatch between server and client
-  const [today, setToday] = useState<Date | null>(null);
+  // Use state for "selectedDate" so it doesn't cause hydration mismatch between server and client
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const actualTodayStr = new Date().toDateString();
 
   useEffect(() => {
-    setToday(new Date());
+    setSelectedDate(new Date());
   }, []);
 
   // Compute Stats
@@ -31,19 +32,19 @@ export default function DashboardClientView({ shifts, employees }: DashboardClie
     return { total, doctors, nurses };
   }, [employees]);
 
-  // Compute Today's Shifts
+  // Compute Shifts for Selected Date
   const todaysShifts = useMemo(() => {
-    if (!today) return [];
-    const todayStr = today.toDateString();
+    if (!selectedDate) return [];
+    const selectedStr = selectedDate.toDateString();
 
     return shifts
       .filter(shift => {
         const startDateStr = new Date(shift.startTime).toDateString();
         const endDateStr = new Date(shift.endTime).toDateString();
-        return startDateStr === todayStr || endDateStr === todayStr;
+        return startDateStr === selectedStr || endDateStr === selectedStr;
       })
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-  }, [shifts, today]);
+  }, [shifts, selectedDate]);
 
   // Format shift times
   const formatTime = (dateStr: string) => {
@@ -52,10 +53,10 @@ export default function DashboardClientView({ shifts, employees }: DashboardClie
 
   // Calendar logic for current month
   const calendarDays = useMemo(() => {
-    if (!today) return [];
+    if (!selectedDate) return [];
     
-    const year = today.getFullYear();
-    const month = today.getMonth();
+    const year = selectedDate.getFullYear();
+    const month = selectedDate.getMonth();
     
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
@@ -76,11 +77,11 @@ export default function DashboardClientView({ shifts, employees }: DashboardClie
     }
     
     return days;
-  }, [today]);
+  }, [selectedDate]);
 
   const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 
-  if (!today) return null; // Avoid hydration mismatch
+  if (!selectedDate) return null; // Avoid hydration mismatch
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
@@ -128,17 +129,17 @@ export default function DashboardClientView({ shifts, employees }: DashboardClie
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem", paddingBottom: "1rem", borderBottom: "1px solid #f1f5f9" }}>
             <h3 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f172a", margin: 0, display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <Clock size={18} color="#2563eb" />
-              Jadwal Shift Hari Ini
+              Jadwal Shift: 
             </h3>
             <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#64748b", background: "#f8fafc", padding: "0.3rem 0.75rem", borderRadius: "99px" }}>
-              {today.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}
+              {selectedDate.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}
             </span>
           </div>
 
           {todaysShifts.length === 0 ? (
             <div style={{ padding: "3rem", textAlign: "center", background: "#f8fafc", borderRadius: "0.5rem", border: "1px dashed #cbd5e1" }}>
               <CalendarDays size={32} color="#94a3b8" style={{ margin: "0 auto 1rem auto", opacity: 0.5 }} />
-              <p style={{ margin: 0, color: "#64748b", fontWeight: 500 }}>Tidak ada jadwal shift untuk hari ini.</p>
+              <p style={{ margin: 0, color: "#64748b", fontWeight: 500 }}>Tidak ada jadwal shift untuk tanggal ini.</p>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
@@ -169,7 +170,7 @@ export default function DashboardClientView({ shifts, employees }: DashboardClie
         <div className="card" style={{ padding: "1.5rem" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
             <h3 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f172a", margin: 0 }}>
-              {monthNames[today.getMonth()]} {today.getFullYear()}
+              {monthNames[selectedDate.getMonth()]} {selectedDate.getFullYear()}
             </h3>
           </div>
 
@@ -187,7 +188,8 @@ export default function DashboardClientView({ shifts, employees }: DashboardClie
                 return <div key={`empty-${index}`} style={{ padding: "0.5rem" }} />;
               }
 
-              const isToday = date.toDateString() === today.toDateString();
+              const isSelected = date.toDateString() === selectedDate.toDateString();
+              const isActualToday = date.toDateString() === actualTodayStr;
               
               // Check if there are any shifts on this day
               const hasShifts = shifts.some(s => new Date(s.startTime).toDateString() === date.toDateString() || new Date(s.endTime).toDateString() === date.toDateString());
@@ -195,6 +197,7 @@ export default function DashboardClientView({ shifts, employees }: DashboardClie
               return (
                 <div 
                   key={index}
+                  onClick={() => setSelectedDate(date)}
                   style={{
                     display: "flex",
                     flexDirection: "column",
@@ -202,20 +205,24 @@ export default function DashboardClientView({ shifts, employees }: DashboardClie
                     justifyContent: "center",
                     aspectRatio: "1/1",
                     borderRadius: "0.5rem",
-                    background: isToday ? "#2563eb" : "transparent",
-                    color: isToday ? "#fff" : "#334155",
-                    fontWeight: isToday ? 700 : 500,
+                    background: isSelected ? "#2563eb" : "transparent",
+                    color: isSelected ? "#fff" : isActualToday ? "#2563eb" : "#334155",
+                    fontWeight: isSelected || isActualToday ? 800 : 500,
                     fontSize: "0.85rem",
                     position: "relative",
+                    cursor: "pointer",
+                    transition: "background 0.2s"
                   }}
+                  onMouseEnter={(e) => { if(!isSelected) e.currentTarget.style.background = "#f1f5f9" }}
+                  onMouseLeave={(e) => { if(!isSelected) e.currentTarget.style.background = "transparent" }}
                 >
                   {date.getDate()}
                   
                   {/* Indicator Dot */}
-                  {hasShifts && !isToday && (
+                  {hasShifts && !isSelected && (
                     <div style={{ position: "absolute", bottom: "4px", width: "4px", height: "4px", borderRadius: "50%", background: "#38bdf8" }} />
                   )}
-                  {hasShifts && isToday && (
+                  {hasShifts && isSelected && (
                     <div style={{ position: "absolute", bottom: "4px", width: "4px", height: "4px", borderRadius: "50%", background: "#bfdbfe" }} />
                   )}
                 </div>

@@ -13,7 +13,7 @@ interface GAStatsModalProps {
 
 export default function GAStatsModal({ isOpen, onClose, result }: GAStatsModalProps) {
   const [mounted, setMounted] = useState(false);
-  
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -67,7 +67,7 @@ export default function GAStatsModal({ isOpen, onClose, result }: GAStatsModalPr
 
         {/* Modal Body */}
         <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-          
+
           {/* Banner Skor Fitness */}
           <div style={{
             padding: "1rem",
@@ -148,7 +148,7 @@ export default function GAStatsModal({ isOpen, onClose, result }: GAStatsModalPr
             <div style={{ background: "#f8fafc", padding: "0.6rem 1rem", fontSize: "0.8rem", fontWeight: 700, color: "#334155", borderBottom: "1px solid #e2e8f0" }}>
               Evaluasi Batasan Kerja (Constraint Compliance)
             </div>
-            
+
             <div style={{ padding: "0.75rem 1rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "0.85rem" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#334155" }}>

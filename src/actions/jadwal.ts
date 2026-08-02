@@ -13,7 +13,7 @@ export interface GenerateScheduleParams {
   department: string;
   startDate: string; // YYYY-MM-DD
   daysCount: number; // 7, 14, or 30 days
-  selectedShiftTypes: string[]; // ["Shift Pagi", "Shift Siang", "Shift Malam"]
+  selectedShiftTypes: string[]; // ["Shift Pagi", "Shift Sore", "Shift Malam"]
 }
 
 export async function getSchedules(departmentFilter?: string) {
@@ -42,13 +42,26 @@ export async function getSchedules(departmentFilter?: string) {
       orderBy: {
         startTime: "asc",
       },
-      take: 500, // batasi tampilan 500 shift agar UI tetap ringan
+      // Menghapus take: 500 agar jadwal sebulan (yang bisa mencapai ribuan data) tetap terambil semua
     });
 
     return { success: true, data: shifts };
   } catch (error) {
     console.error("Gagal mengambil data jadwal dari database:", error);
     return { success: false, error: "Gagal memuat jadwal shift dari database.", data: [] };
+  }
+}
+
+export async function getShiftsByEmployee(employeeId: string) {
+  try {
+    const shifts = await prisma.shift.findMany({
+      where: { employeeId },
+      orderBy: { startTime: "asc" },
+    });
+    return { success: true, data: shifts };
+  } catch (error) {
+    console.error("Gagal mengambil shift untuk karyawan:", error);
+    return { success: false, error: "Gagal memuat jadwal karyawan.", data: [] };
   }
 }
 
@@ -97,10 +110,11 @@ export async function generateAutomaticSchedule(params: GenerateScheduleParams):
     // 2. Buat daftar slot shift berdasarkan hari dan jenis shift
     const slots: ShiftSlot[] = [];
     const baseDate = new Date(startDate);
-    // Tentukan jumlah staf per slot agar rasio kerja seimbang.
-    // Target normal: seorang staf bekerja ~20 hari dalam sebulan (sekitar 66% dari total hari).
-    // Jadi dalam 1 hari, sekitar 66% staf di departemen tersebut harus masuk kerja.
-    const targetDailyWorkingRatio = 0.66; 
+    // Tentukan jumlah staf per slot agar rasio kerja seimbang dan tidak menabrak batas 40 jam/minggu.
+    // Batas maksimal mutlak adalah 5 hari dari 7 hari (0.71).
+    // Kita turunkan target beban kerja harian menjadi 0.5 (sekitar 3.5 shift per minggu per staf) 
+    // agar algoritma memiliki ruang gerak yang cukup untuk menghindari double-shift dan bentrok.
+    const targetDailyWorkingRatio = 0.5; 
     const ratioPerShift = targetDailyWorkingRatio / selectedShiftTypes.length;
     const requiredCountPerSlot = Math.max(1, Math.round(dbStaff.length * ratioPerShift));
 
@@ -117,7 +131,7 @@ export async function generateAutomaticSchedule(params: GenerateScheduleParams):
         if (shiftType === "Shift Pagi") {
           startHour = 8;
           endHour = 16;
-        } else if (shiftType === "Shift Siang") {
+        } else if (shiftType === "Shift Sore") {
           startHour = 16;
           endHour = 24;
         } else if (shiftType === "Shift Malam") {

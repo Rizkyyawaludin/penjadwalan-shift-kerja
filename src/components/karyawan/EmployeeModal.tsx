@@ -9,7 +9,7 @@ interface EmployeeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  employeeToEdit?: { id: string; name: string; email: string; role: string } | null;
+  employeeToEdit?: { id: string; name: string; email: string; role: string; department?: string | null; experienceYears?: number | null; workdaysPerMonth?: number | null } | null;
 }
 
 export default function EmployeeModal({
@@ -23,6 +23,9 @@ export default function EmployeeModal({
     name: "",
     email: "",
     role: "STAFF",
+    department: "",
+    experienceYears: undefined,
+    workdaysPerMonth: 20, // Default standar NSP Kaggle
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,12 +40,18 @@ export default function EmployeeModal({
         name: employeeToEdit.name,
         email: employeeToEdit.email,
         role: employeeToEdit.role,
+        department: employeeToEdit.department || "",
+        experienceYears: employeeToEdit.experienceYears || undefined,
+        workdaysPerMonth: employeeToEdit.workdaysPerMonth || 20,
       });
     } else {
       setFormData({
         name: "",
         email: "",
         role: "STAFF",
+        department: "",
+        experienceYears: undefined,
+        workdaysPerMonth: 20,
       });
     }
     setError(null);
@@ -152,6 +161,53 @@ export default function EmployeeModal({
                 <option value="STAFF">STAFF (Karyawan Operasional)</option>
                 <option value="MANAGER">MANAGER (Koordinator Shift)</option>
               </select>
+            </div>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1.25rem" }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Departemen / Unit</label>
+                <select
+                  className="custom-select"
+                  value={formData.department || ""}
+                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                >
+                  <option value="">-- Pilih Unit --</option>
+                  <option value="Umum">Umum</option>
+                  <option value="ICU">ICU</option>
+                  <option value="ER">UGD (ER)</option>
+                  <option value="Anak">Poli Anak</option>
+                  <option value="Bedah">Bedah</option>
+                </select>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Pengalaman (Tahun)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="50"
+                  placeholder="Cth: 5"
+                  className="custom-input"
+                  value={formData.experienceYears || ""}
+                  onChange={(e) => setFormData({ ...formData, experienceYears: e.target.value ? parseInt(e.target.value) : undefined })}
+                />
+              </div>
+            </div>
+
+            <div className="form-group" style={{ marginTop: "1.25rem", marginBottom: 0 }}>
+              <label className="form-label">Batas Hari Kerja Sebulan</label>
+              <input
+                type="number"
+                min="1"
+                max="31"
+                required
+                className="custom-input"
+                value={formData.workdaysPerMonth || ""}
+                onChange={(e) => setFormData({ ...formData, workdaysPerMonth: e.target.value ? parseInt(e.target.value) : undefined })}
+              />
+              <span style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.25rem" }}>
+                Standar Normal: 20 hari (Libur 2 hari/minggu)
+              </span>
             </div>
           </div>
 

@@ -11,10 +11,13 @@ import {
   ShieldCheck, 
   UserCheck, 
   Calendar,
-  Inbox
+  Inbox,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import EmployeeModal from "./EmployeeModal";
 import DeleteConfirmModal from "./DeleteConfirmModal";
+import EmployeeShiftsModal from "./EmployeeShiftsModal";
 
 export interface EmployeeData {
   id: string;
@@ -53,10 +56,22 @@ export default function EmployeeClientView({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<{ id: string; name: string } | null>(null);
 
+  const [isShiftsModalOpen, setIsShiftsModalOpen] = useState(false);
+  const [employeeForShifts, setEmployeeForShifts] = useState<EmployeeData | null>(null);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
+
   // Sync state ketika props berubah (setelah Server Action revalidatePath)
   useEffect(() => {
     setEmployees(initialEmployees);
   }, [initialEmployees]);
+
+  // Reset pagination saat filter/search berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, roleFilter]);
 
   // Filter & Search Logika
   const filteredEmployees = useMemo(() => {
@@ -71,6 +86,13 @@ export default function EmployeeClientView({
     });
   }, [employees, searchQuery, roleFilter]);
 
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
+  const paginatedEmployees = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredEmployees.slice(start, start + itemsPerPage);
+  }, [filteredEmployees, currentPage, itemsPerPage]);
+
   const handleOpenAdd = () => {
     setSelectedEmployee(null);
     setIsFormModalOpen(true);
@@ -84,6 +106,11 @@ export default function EmployeeClientView({
   const handleOpenDelete = (emp: EmployeeData) => {
     setEmployeeToDelete({ id: emp.id, name: emp.name });
     setIsDeleteModalOpen(true);
+  };
+
+  const handleOpenShifts = (emp: EmployeeData) => {
+    setEmployeeForShifts(emp);
+    setIsShiftsModalOpen(true);
   };
 
   const formatDate = (date: Date | string) => {
@@ -224,10 +251,14 @@ export default function EmployeeClientView({
                 </td>
               </tr>
             ) : (
-              filteredEmployees.map((emp) => (
-                <tr key={emp.id}>
+              paginatedEmployees.map((emp) => (
+                <tr key={emp.id} style={{ transition: "background-color 0.2s" }} className="hover-row">
                   <td>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                    <div 
+                      style={{ display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer" }}
+                      onClick={() => handleOpenShifts(emp)}
+                      title="Klik untuk melihat daftar shift"
+                    >
                       <div style={{
                         width: "36px",
                         height: "36px",
@@ -239,12 +270,15 @@ export default function EmployeeClientView({
                         justifyContent: "center",
                         fontWeight: 700,
                         fontSize: "0.9rem",
-                        border: `1px solid ${emp.role === "MANAGER" ? "#e9d5ff" : "#bae6fd"}`
-                      }}>
+                        border: `1px solid ${emp.role === "MANAGER" ? "#e9d5ff" : "#bae6fd"}`,
+                        transition: "transform 0.2s"
+                      }} className="avatar-icon">
                         {emp.name.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600, color: "#0f172a" }}>{emp.name}</div>
+                        <div style={{ fontWeight: 600, color: "#2563eb", textDecoration: "underline", textUnderlineOffset: "2px" }}>
+                          {emp.name}
+                        </div>
                         <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>ID: {emp.id.slice(-6)}</div>
                       </div>
                     </div>
@@ -294,6 +328,60 @@ export default function EmployeeClientView({
         </table>
       </div>
 
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "1rem", flexWrap: "wrap", gap: "1rem", padding: "0.5rem 0" }}>
+          <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
+            Menampilkan <span style={{ fontWeight: 600, color: "#0f172a" }}>{(currentPage - 1) * itemsPerPage + 1}</span> - <span style={{ fontWeight: 600, color: "#0f172a" }}>{Math.min(currentPage * itemsPerPage, filteredEmployees.length)}</span> dari total <span style={{ fontWeight: 600, color: "#0f172a" }}>{filteredEmployees.length}</span> data
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="btn-icon"
+              style={{ padding: "0.4rem", border: "1px solid #cbd5e1", borderRadius: "0.4rem", background: currentPage === 1 ? "#f8fafc" : "#fff", opacity: currentPage === 1 ? 0.5 : 1 }}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            
+            <div style={{ display: "flex", alignItems: "center", margin: "0 0.5rem" }}>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  style={{
+                    width: "32px",
+                    height: "32px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: "0.4rem",
+                    border: "none",
+                    background: currentPage === page ? "#0f172a" : "transparent",
+                    color: currentPage === page ? "#fff" : "#64748b",
+                    fontSize: "0.85rem",
+                    fontWeight: currentPage === page ? 600 : 500,
+                    cursor: "pointer",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  {page}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="btn-icon"
+              style={{ padding: "0.4rem", border: "1px solid #cbd5e1", borderRadius: "0.4rem", background: currentPage === totalPages ? "#f8fafc" : "#fff", opacity: currentPage === totalPages ? 0.5 : 1 }}
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Modals */}
       <EmployeeModal
         isOpen={isFormModalOpen}
@@ -311,6 +399,12 @@ export default function EmployeeClientView({
           // Modal will close and revalidatePath will automatically update props
         }}
         employeeToDelete={employeeToDelete}
+      />
+
+      <EmployeeShiftsModal
+        isOpen={isShiftsModalOpen}
+        onClose={() => setIsShiftsModalOpen(false)}
+        employee={employeeForShifts}
       />
     </div>
   );

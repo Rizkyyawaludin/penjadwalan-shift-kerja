@@ -7,6 +7,9 @@ export interface EmployeeFormData {
   name: string;
   email: string;
   role: string;
+  department?: string;
+  experienceYears?: number;
+  workdaysPerMonth?: number;
 }
 
 export async function getEmployees() {
@@ -68,6 +71,9 @@ export async function createEmployee(formData: EmployeeFormData) {
         name,
         email,
         role: role || "STAFF",
+        department: formData.department || null,
+        experienceYears: formData.experienceYears ? Number(formData.experienceYears) : null,
+        workdaysPerMonth: formData.workdaysPerMonth ? Number(formData.workdaysPerMonth) : null,
       },
     });
 
@@ -105,6 +111,9 @@ export async function updateEmployee(id: string, formData: EmployeeFormData) {
         name,
         email,
         role: role || "STAFF",
+        department: formData.department || null,
+        experienceYears: formData.experienceYears ? Number(formData.experienceYears) : null,
+        workdaysPerMonth: formData.workdaysPerMonth ? Number(formData.workdaysPerMonth) : null,
       },
     });
 

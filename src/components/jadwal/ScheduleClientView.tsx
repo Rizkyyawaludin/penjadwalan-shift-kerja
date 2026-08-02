@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { 
   Calendar, 
   Sparkles, 
@@ -51,7 +51,7 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
     return `${year}-${month}-${day}`;
   });
   const [daysCount, setDaysCount] = useState<number>(7);
-  const [selectedShiftTypes, setSelectedShiftTypes] = useState<string[]>(["Shift Pagi", "Shift Siang", "Shift Malam"]);
+  const [selectedShiftTypes, setSelectedShiftTypes] = useState<string[]>(["Shift Pagi", "Shift Sore", "Shift Malam"]);
   
   // State UI & Loading
   const [loadingImport, setLoadingImport] = useState(false);
@@ -59,9 +59,18 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
   const [loadingClear, setLoadingClear] = useState(false);
   const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
   
-  // Modal AI Stats
+  // State Modal & View
   const [gaResult, setGaResult] = useState<GAOptimizationResult | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "matrix">("matrix");
+
+  // State Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 1; // Menampilkan 1 hari per halaman
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [shifts, draftShifts]);
 
   const refreshData = useCallback(async (dept: string) => {
     try {
@@ -209,13 +218,52 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
     }
   };
 
+  // Kelompokkan shift berdasarkan tanggal untuk tampilan tabel rapi
+  const displayShifts = isDraftMode ? draftShifts : shifts;
+  const groupedShifts = displayShifts.reduce((acc: Record<string, any[]>, shift) => {
+    const dateKey = new Date(shift.startTime).toISOString().split("T")[0];
+    if (!acc[dateKey]) acc[dateKey] = [];
+    acc[dateKey].push(shift);
+    return acc;
+  }, {});
+
+  const employeeShiftCounts = displayShifts.reduce((acc: Record<string, number>, shift) => {
+    const empId = shift.employeeId || shift.employee?.id;
+    if (empId) acc[empId] = (acc[empId] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Data untuk Matrix View
+  const uniqueDates = Object.keys(groupedShifts).sort();
+  const matrixData = useMemo(() => {
+    const map = new Map<string, any>();
+    displayShifts.forEach(shift => {
+      const empName = shift.employee?.name;
+      if (!empName) return;
+      if (!map.has(empName)) {
+        map.set(empName, { 
+          dept: shift.employee?.department, 
+          total: 0,
+          shiftsByDate: {} 
+        });
+      }
+      const data = map.get(empName);
+      const dateKey = new Date(shift.startTime).toISOString().split("T")[0];
+      data.shiftsByDate[dateKey] = shift.title;
+      data.total += 1;
+    });
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [displayShifts]);
+
   const handleExportCSV = () => {
-    const headers = ["Tanggal", "Shift", "Waktu Mulai", "Waktu Selesai", "Nama Karyawan", "Departemen", "Kaggle ID"];
+    const headers = ["Tanggal", "Shift", "Waktu Mulai", "Waktu Selesai", "Nama Karyawan", "Departemen", "Total Beban Shift"];
     
     const rows = shifts.map(shift => {
       const date = formatDateTime(shift.startTime).split(",")[0];
       const startTime = formatTime(shift.startTime);
       const endTime = formatTime(shift.endTime);
+      const empId = shift.employeeId || shift.employee?.id;
+      const totalShift = employeeShiftCounts[empId] || 0;
       
       return [
         `"${date}"`,
@@ -224,7 +272,7 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
         `"${endTime}"`,
         `"${shift.employee?.name || "-"}"`,
         `"${shift.employee?.department || "Umum"}"`,
-        `"${shift.employee?.kaggleStaffId || "-"}"`
+        `"${totalShift}"`
       ];
     });
     
@@ -253,19 +301,20 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
     return d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
   };
 
-  // Kelompokkan shift berdasarkan tanggal untuk tampilan tabel rapi
-  const displayShifts = isDraftMode ? draftShifts : shifts;
-  const groupedShifts = displayShifts.reduce((acc: Record<string, any[]>, shift) => {
-    const dateKey = new Date(shift.startTime).toISOString().split("T")[0];
-    if (!acc[dateKey]) acc[dateKey] = [];
-    acc[dateKey].push(shift);
-    return acc;
-  }, {});
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
       <style dangerouslySetInnerHTML={{__html: `
+        @media screen {
+          .screen-hidden { display: none !important; }
+        }
         @media print {
+          @page {
+            size: landscape;
+            margin: 0; /* Margin 0 menghilangkan header/footer URL bawaan browser */
+          }
+          body {
+            padding: 10mm !important; /* Tambahkan padding manual agar konten tidak menyentuh ujung kertas */
+          }
           /* Sembunyikan elemen bawaan dashboard dan elemen kontrol */
           .sidebar-nav, .glass-header, .no-print {
             display: none !important;
@@ -304,6 +353,15 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
             border: 1px solid #cbd5e1 !important;
             padding: 8px 12px !important;
           }
+          .matrix-table {
+            zoom: 0.55; /* Perkecil hingga 55% agar 30 kolom hari muat di satu layar A4 Landscape */
+            font-size: 11px !important;
+          }
+          .matrix-table th, .matrix-table td {
+            padding: 4px 6px !important;
+            white-space: nowrap !important;
+            position: static !important; /* Mencegah bug sticky header saat PDF dicetak */
+          }
           .print-header {
             display: block !important;
             margin-bottom: 20px;
@@ -334,8 +392,8 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
         </div>
       )}
 
-      {/* Bagian 1: Dataset Kaggle Integration Card */}
-      <div className="card no-print" style={{ background: "#ffffff", border: "1px solid #e2e8f0" }}>
+      {/* Bagian 1: Dataset Kaggle Integration Card (Disembunyikan Sementara) */}
+      <div className="card no-print" style={{ display: "none", background: "#ffffff", border: "1px solid #e2e8f0" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
@@ -398,31 +456,49 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
       </div>
 
       {/* Bagian 2: AI Schedule Generator Controls */}
-      <div className="card no-print" style={{ background: "#ffffff", border: "1px solid #e2e8f0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "1.25rem" }}>
-          <div style={{ padding: "0.4rem", borderRadius: "0.4rem", background: "#0f172a", color: "#ffffff" }}>
-            <Sparkles size={18} />
+      <div className="card no-print" style={{ background: "#ffffff", border: "1px solid #e2e8f0", padding: "1.75rem", borderRadius: "1rem", boxShadow: "0 4px 20px -2px rgba(0, 0, 0, 0.03)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.75rem", paddingBottom: "1.25rem", borderBottom: "1px solid #f1f5f9" }}>
+          <div style={{ 
+            padding: "0.75rem", borderRadius: "0.75rem", 
+            background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)", 
+            color: "#ffffff", boxShadow: "0 4px 10px rgba(15, 23, 42, 0.25)" 
+          }}>
+            <Sparkles size={22} />
           </div>
           <div>
-            <h3 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f172a", margin: 0 }}>
+            <h3 style={{ fontSize: "1.2rem", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.01em" }}>
               AI Genetic Algorithm Generator
             </h3>
-            <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
-              Konfigurasi parameter untuk pembuatan jadwal otomatis tanpa bentrok (No Double Shift)
+            <span style={{ fontSize: "0.85rem", color: "#64748b", display: "block", marginTop: "0.2rem" }}>
+              Konfigurasi mesin cerdas untuk meracik jadwal shift optimal tanpa bentrok.
             </span>
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1.25rem" }}>
+        <div style={{ 
+          display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1.25rem",
+          background: "#f8fafc", padding: "1.25rem", borderRadius: "0.75rem", border: "1px solid #f1f5f9"
+        }}>
           {/* Departemen */}
           <div>
-            <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#334155", marginBottom: "0.4rem" }}>
+            <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.6rem" }}>
               Target Departemen
             </label>
             <select
               className="input-field"
               value={targetDept}
               onChange={(e) => setTargetDept(e.target.value)}
+              style={{ 
+                background: "#ffffff", 
+                border: "2px solid #e2e8f0", 
+                padding: "0.75rem 1rem", 
+                borderRadius: "0.5rem", 
+                fontSize: "0.95rem", 
+                fontWeight: 600, 
+                color: "#0f172a",
+                boxShadow: "inset 0 2px 4px rgba(0,0,0,0.02)",
+                cursor: "pointer"
+              }}
             >
               <option value="ALL">Semua Departemen</option>
               <option value="ER">ER (Emergency Room)</option>
@@ -434,7 +510,7 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
 
           {/* Tanggal Mulai */}
           <div>
-            <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#334155", marginBottom: "0.4rem" }}>
+            <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.6rem" }}>
               Tanggal Mulai
             </label>
             <input
@@ -442,18 +518,40 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
               className="input-field"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
+              style={{ 
+                background: "#ffffff", 
+                border: "2px solid #e2e8f0", 
+                padding: "0.75rem 1rem", 
+                borderRadius: "0.5rem", 
+                fontSize: "0.95rem", 
+                fontWeight: 600, 
+                color: "#0f172a",
+                boxShadow: "inset 0 2px 4px rgba(0,0,0,0.02)",
+                cursor: "pointer"
+              }}
             />
           </div>
 
           {/* Durasi Hari */}
           <div>
-            <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#334155", marginBottom: "0.4rem" }}>
+            <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.6rem" }}>
               Durasi Penjadwalan
             </label>
             <select
               className="input-field"
               value={daysCount}
               onChange={(e) => setDaysCount(Number(e.target.value))}
+              style={{ 
+                background: "#ffffff", 
+                border: "2px solid #e2e8f0", 
+                padding: "0.75rem 1rem", 
+                borderRadius: "0.5rem", 
+                fontSize: "0.95rem", 
+                fontWeight: 600, 
+                color: "#0f172a",
+                boxShadow: "inset 0 2px 4px rgba(0,0,0,0.02)",
+                cursor: "pointer"
+              }}
             >
               <option value={7}>7 Hari (Mingguan)</option>
               <option value={14}>14 Hari (Dua Mingguan)</option>
@@ -463,41 +561,62 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
         </div>
 
         {/* Checkbox Jenis Shift */}
-        <div style={{ marginTop: "1.25rem", paddingTop: "1rem", borderTop: "1px dashed #e2e8f0" }}>
-          <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#334155", marginBottom: "0.6rem" }}>
+        <div style={{ marginTop: "1.75rem" }}>
+          <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, color: "#334155", marginBottom: "0.85rem" }}>
             Pilih Jenis Shift Dilibatkan:
           </label>
-          <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap" }}>
-            {["Shift Pagi", "Shift Siang", "Shift Malam"].map((type) => {
-              const isChecked = selectedShiftTypes.includes(type);
+          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
+            {["Shift Pagi", "Shift Sore", "Shift Malam"].map((type) => {
+              const isSelected = selectedShiftTypes.includes(type);
               return (
-                <label key={type} style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontSize: "0.9rem", color: "#0f172a", fontWeight: 500 }}>
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    onChange={() => toggleShiftType(type)}
-                    style={{ width: "16px", height: "16px", accentColor: "#0f172a", cursor: "pointer" }}
-                  />
-                  <span>{type}</span>
-                  <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 400 }}>
-                    ({type === "Shift Pagi" ? "08:00 - 16:00" : type === "Shift Siang" ? "16:00 - 00:00" : "00:00 - 08:00"})
-                  </span>
-                </label>
+                <div 
+                  key={type}
+                  onClick={() => toggleShiftType(type)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "0.85rem", cursor: "pointer",
+                    padding: "1rem", borderRadius: "0.75rem",
+                    border: `2px solid ${isSelected ? "#0f172a" : "#e2e8f0"}`,
+                    background: isSelected ? "#f8fafc" : "#ffffff",
+                    transition: "all 0.2s ease",
+                    boxShadow: isSelected ? "0 4px 10px -2px rgba(15, 23, 42, 0.15)" : "none"
+                  }}
+                >
+                  <div style={{ 
+                    width: "22px", height: "22px", borderRadius: "6px", 
+                    background: isSelected ? "#0f172a" : "#f1f5f9", 
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    border: `1px solid ${isSelected ? "#0f172a" : "#cbd5e1"}`,
+                    transition: "all 0.2s ease"
+                  }}>
+                    {isSelected && <CheckCircle2 size={16} color="#ffffff" />}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "0.95rem", color: isSelected ? "#0f172a" : "#334155", fontWeight: 700 }}>
+                      {type}
+                    </div>
+                    <span style={{ fontSize: "0.75rem", color: isSelected ? "#475569" : "#94a3b8", marginTop: "0.15rem", display: "block", fontWeight: 600 }}>
+                      {type === "Shift Pagi" ? "08:00 - 16:00" : type === "Shift Sore" ? "16:00 - 00:00" : "00:00 - 08:00"}
+                    </span>
+                  </div>
+                </div>
               );
             })}
           </div>
         </div>
 
         {/* Tombol Eksekusi */}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1.5rem", paddingTop: "1rem", borderTop: "1px solid #e2e8f0" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "2rem", paddingTop: "1.5rem", borderTop: "1px solid #e2e8f0" }}>
           <button
             type="button"
             className="btn btn-danger"
             onClick={handleClearSchedules}
             disabled={loadingClear || shifts.length === 0}
-            style={{ background: "transparent", color: "var(--danger)", border: "1px solid #fecaca" }}
+            style={{ 
+              background: "transparent", color: "var(--danger)", border: "2px solid #fecaca",
+              padding: "0.75rem 1.25rem", borderRadius: "0.5rem", fontWeight: 600, transition: "all 0.2s"
+            }}
           >
-            {loadingClear ? <Loader2 size={16} className="animate-spin" style={{ animation: "spin 1s linear infinite" }} /> : <Trash2 size={16} />}
+            {loadingClear ? <Loader2 size={18} className="animate-spin" style={{ animation: "spin 1s linear infinite" }} /> : <Trash2 size={18} />}
             <span>Kosongkan Jadwal</span>
           </button>
 
@@ -506,7 +625,14 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
             className="btn btn-primary"
             onClick={handleGenerateGA}
             disabled={loadingGenerate || selectedShiftTypes.length === 0}
-            style={{ padding: "0.65rem 1.5rem", fontSize: "0.95rem" }}
+            style={{ 
+              background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
+              border: "none",
+              color: "#ffffff",
+              padding: "0.75rem 1.75rem", fontSize: "1rem", fontWeight: 700,
+              boxShadow: "0 10px 15px -3px rgba(15, 23, 42, 0.3)",
+              transition: "all 0.2s transform"
+            }}
           >
             {loadingGenerate ? (
               <>
@@ -581,6 +707,18 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
               )}
               {shifts.length > 0 && (
                 <>
+                  <div className="no-print" style={{ display: "flex", gap: "0.25rem", background: "#f1f5f9", padding: "0.25rem", borderRadius: "0.5rem", marginRight: "0.5rem" }}>
+                    <button 
+                      type="button" 
+                      onClick={() => setViewMode("matrix")}
+                      style={{ padding: "0.3rem 0.6rem", fontSize: "0.75rem", fontWeight: 600, background: viewMode === "matrix" ? "#fff" : "transparent", color: viewMode === "matrix" ? "#0f172a" : "#64748b", borderRadius: "0.35rem", border: "none", boxShadow: viewMode === "matrix" ? "0 1px 2px rgba(0,0,0,0.05)" : "none", cursor: "pointer" }}
+                    >Matriks</button>
+                    <button 
+                      type="button" 
+                      onClick={() => setViewMode("list")}
+                      style={{ padding: "0.3rem 0.6rem", fontSize: "0.75rem", fontWeight: 600, background: viewMode === "list" ? "#fff" : "transparent", color: viewMode === "list" ? "#0f172a" : "#64748b", borderRadius: "0.35rem", border: "none", boxShadow: viewMode === "list" ? "0 1px 2px rgba(0,0,0,0.05)" : "none", cursor: "pointer" }}
+                    >Daftar Baris</button>
+                  </div>
                   <button
                     type="button"
                     className="btn btn-secondary"
@@ -615,6 +753,57 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
               Silakan atur parameter departemen dan durasi di atas, lalu klik tombol <strong>Generate Jadwal Otomatis (AI)</strong> untuk membuat jadwal tanpa bentrok.
             </p>
           </div>
+        ) : viewMode === "matrix" && !isDraftMode ? (
+          <div style={{ overflowX: "auto", paddingBottom: "1rem" }}>
+            <table className="table matrix-table" style={{ width: "100%", borderCollapse: "collapse", whiteSpace: "nowrap" }}>
+              <thead>
+                <tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0", textAlign: "left" }}>
+                  <th style={{ padding: "0.85rem", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", position: "sticky", left: 0, background: "#f8fafc", zIndex: 10, borderRight: "1px solid #e2e8f0" }}>Nama Karyawan</th>
+                  <th style={{ padding: "0.85rem", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", borderRight: "1px solid #e2e8f0" }}>Total Shift</th>
+                  {uniqueDates.map(dateKey => (
+                    <th key={dateKey} style={{ padding: "0.85rem 0.2rem", minWidth: "40px", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textAlign: "center" }}>
+                      {new Date(dateKey).getDate()}/{new Date(dateKey).getMonth() + 1}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {matrixData.map(([empName, data], idx) => (
+                  <tr key={empName} style={{ background: idx % 2 === 0 ? "#ffffff" : "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                    <td style={{ padding: "0.6rem 0.85rem", fontSize: "0.8rem", fontWeight: 600, color: "#0f172a", position: "sticky", left: 0, background: idx % 2 === 0 ? "#ffffff" : "#f8fafc", zIndex: 10, borderRight: "1px solid #e2e8f0" }}>
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <span>{empName.replace(/\s*\(.*?\)/, "")}</span>
+                        <span style={{ fontSize: "0.65rem", color: "#64748b", fontWeight: 400 }}>{data.dept}</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: "0.6rem 0.85rem", fontSize: "0.85rem", fontWeight: 700, color: "#3b82f6", textAlign: "center", borderRight: "1px solid #e2e8f0" }}>
+                      {data.total}
+                    </td>
+                    {uniqueDates.map(dateKey => {
+                      const shiftTitle = data.shiftsByDate[dateKey];
+                      let bg = "transparent"; let textColor = "#94a3b8"; let text = "-";
+                      if (shiftTitle) {
+                        if (shiftTitle.includes("Pagi")) { bg = "#fef3c7"; textColor = "#d97706"; text = "P"; }
+                        else if (shiftTitle.includes("Sore")) { bg = "#e0f2fe"; textColor = "#0284c7"; text = "S"; }
+                        else if (shiftTitle.includes("Malam")) { bg = "#1e293b"; textColor = "#ffffff"; text = "M"; }
+                      }
+                      return (
+                        <td key={dateKey} style={{ padding: "0.4rem", textAlign: "center", borderRight: "1px dashed #f1f5f9" }}>
+                           {shiftTitle ? (
+                             <div style={{ background: bg, color: textColor, fontSize: "0.75rem", fontWeight: 700, width: "24px", height: "24px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "0.3rem", margin: "0 auto" }} title={shiftTitle}>
+                               {text}
+                             </div>
+                           ) : (
+                             <span style={{ color: "#cbd5e1" }}>-</span>
+                           )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table className="table" style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -624,20 +813,24 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
                   <th style={{ padding: "0.85rem 1.25rem", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Waktu & Jenis Shift</th>
                   <th style={{ padding: "0.85rem 1.25rem", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Karyawan (Staf)</th>
                   <th style={{ padding: "0.85rem 1.25rem", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Departemen</th>
-                  <th style={{ padding: "0.85rem 1.25rem", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Kaggle ID</th>
-                  <th style={{ padding: "0.85rem 1.25rem", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Status</th>
+                  <th style={{ padding: "0.85rem 1.25rem", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Total Beban Shift</th>
+                  <th className="no-print" style={{ padding: "0.85rem 1.25rem", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {Object.keys(groupedShifts).sort().map((dateKey) => (
+                {Object.keys(groupedShifts).sort().map((dateKey, index) => {
+                  const isVisibleOnScreen = index >= (currentPage - 1) * itemsPerPage && index < currentPage * itemsPerPage;
+                  const rowClass = isVisibleOnScreen ? "" : "screen-hidden";
+
+                  return (
                   <React.Fragment key={dateKey}>
-                    <tr style={{ background: "#f1f5f9", borderBottom: "1px solid #e2e8f0" }}>
+                    <tr className={rowClass} style={{ background: "#f1f5f9", borderBottom: "1px solid #e2e8f0" }}>
                       <td colSpan={6} style={{ padding: "0.5rem 1.25rem", fontSize: "0.8rem", fontWeight: 700, color: "#0f172a" }}>
                         📅 {formatDateTime(dateKey)}
                       </td>
                     </tr>
                     {groupedShifts[dateKey].map((shift: any) => (
-                      <tr key={shift.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                      <tr key={shift.id} className={rowClass} style={{ borderBottom: "1px solid #f1f5f9" }}>
                         <td style={{ padding: "0.85rem 1.25rem", fontSize: "0.85rem", color: "#334155", paddingLeft: "2.5rem" }}>
                           {formatDateTime(shift.startTime).split(",")[0]}
                         </td>
@@ -698,10 +891,10 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
                             {shift.employee?.department || "Umum"}
                           </span>
                         </td>
-                        <td style={{ padding: "0.85rem 1.25rem", fontSize: "0.85rem", color: "#64748b", fontFamily: "monospace" }}>
-                          {shift.employee?.kaggleStaffId || "-"}
+                        <td style={{ padding: "0.85rem 1.25rem", fontSize: "0.85rem", color: "#0f172a", fontWeight: 700 }}>
+                          {employeeShiftCounts[shift.employeeId || shift.employee?.id] || 0} <span style={{fontSize: "0.7rem", color: "#64748b", fontWeight: 500}}>Hari</span>
                         </td>
-                        <td style={{ padding: "0.85rem 1.25rem" }}>
+                        <td className="no-print" style={{ padding: "0.85rem 1.25rem" }}>
                           <span style={{
                             padding: "0.25rem 0.6rem",
                             borderRadius: "99px",
@@ -717,9 +910,66 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
                       </tr>
                     ))}
                   </React.Fragment>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
+          </div>
+        )}
+        
+        {/* Pagination Controls */}
+        {Object.keys(groupedShifts).length > itemsPerPage && displayShifts.length > 0 && (
+          <div className="no-print" style={{ 
+            display: "flex", 
+            justifyContent: "space-between", 
+            alignItems: "center", 
+            padding: "1rem 1.5rem", 
+            borderTop: "1px solid #e2e8f0",
+            background: "#f8fafc"
+          }}>
+            <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
+              Menampilkan halaman <strong style={{ color: "#0f172a" }}>{currentPage}</strong> dari <strong style={{ color: "#0f172a" }}>{Math.ceil(Object.keys(groupedShifts).length / itemsPerPage)}</strong>
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button 
+                type="button"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                style={{ 
+                  padding: "0.4rem 0.8rem", 
+                  fontSize: "0.85rem", 
+                  background: "#fff", 
+                  color: "#0f172a",
+                  fontWeight: 500,
+                  border: "1px solid #cbd5e1", 
+                  borderRadius: "0.375rem",
+                  cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                  opacity: currentPage === 1 ? 0.5 : 1,
+                  transition: "all 0.2s"
+                }}
+              >
+                &lt; Sebelumnya
+              </button>
+              <button 
+                type="button"
+                onClick={() => setCurrentPage(p => Math.min(Math.ceil(Object.keys(groupedShifts).length / itemsPerPage), p + 1))}
+                disabled={currentPage === Math.ceil(Object.keys(groupedShifts).length / itemsPerPage)}
+                style={{ 
+                  padding: "0.4rem 0.8rem", 
+                  fontSize: "0.85rem", 
+                  background: "#fff",
+                  color: "#0f172a", 
+                  fontWeight: 500,
+                  border: "1px solid #cbd5e1", 
+                  borderRadius: "0.375rem",
+                  cursor: currentPage === Math.ceil(Object.keys(groupedShifts).length / itemsPerPage) ? "not-allowed" : "pointer",
+                  opacity: currentPage === Math.ceil(Object.keys(groupedShifts).length / itemsPerPage) ? 0.5 : 1,
+                  transition: "all 0.2s"
+                }}
+              >
+                Selanjutnya &gt;
+              </button>
+            </div>
           </div>
         )}
       </div>
