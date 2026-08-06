@@ -43,7 +43,13 @@ export default function DashboardClientView({ shifts, employees }: DashboardClie
         const endDateStr = new Date(shift.endTime).toDateString();
         return startDateStr === selectedStr || endDateStr === selectedStr;
       })
-      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+      .sort((a, b) => {
+        const order: Record<string, number> = { "Shift Malam": 1, "Shift Pagi": 2, "Shift Sore": 3 };
+        const orderA = order[a.title] || 99;
+        const orderB = order[b.title] || 99;
+        if (orderA !== orderB) return orderA - orderB;
+        return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+      });
   }, [shifts, selectedDate]);
 
   // Format shift times
@@ -94,28 +100,8 @@ export default function DashboardClientView({ shifts, employees }: DashboardClie
             <Users size={24} />
           </div>
           <div>
-            <p style={{ margin: 0, fontSize: "0.85rem", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Karyawan</p>
-            <h3 style={{ margin: "0.25rem 0 0 0", fontSize: "1.75rem", fontWeight: 800, color: "#0f172a" }}>{stats.total}</h3>
-          </div>
-        </div>
-
-        <div className="card" style={{ display: "flex", alignItems: "center", gap: "1.25rem", padding: "1.5rem" }}>
-          <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "#e0e7ff", display: "flex", alignItems: "center", justifyContent: "center", color: "#4f46e5" }}>
-            <Stethoscope size={24} />
-          </div>
-          <div>
-            <p style={{ margin: 0, fontSize: "0.85rem", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Dokter</p>
-            <h3 style={{ margin: "0.25rem 0 0 0", fontSize: "1.75rem", fontWeight: 800, color: "#0f172a" }}>{stats.doctors}</h3>
-          </div>
-        </div>
-
-        <div className="card" style={{ display: "flex", alignItems: "center", gap: "1.25rem", padding: "1.5rem" }}>
-          <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "#ecfdf5", display: "flex", alignItems: "center", justifyContent: "center", color: "#10b981" }}>
-            <Activity size={24} />
-          </div>
-          <div>
             <p style={{ margin: 0, fontSize: "0.85rem", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Perawat</p>
-            <h3 style={{ margin: "0.25rem 0 0 0", fontSize: "1.75rem", fontWeight: 800, color: "#0f172a" }}>{stats.nurses}</h3>
+            <h3 style={{ margin: "0.25rem 0 0 0", fontSize: "1.75rem", fontWeight: 800, color: "#0f172a" }}>{stats.total}</h3>
           </div>
         </div>
 

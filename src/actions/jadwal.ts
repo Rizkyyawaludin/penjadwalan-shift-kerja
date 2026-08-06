@@ -95,103 +95,133 @@ export async function generateAutomaticSchedule(params: GenerateScheduleParams):
       };
     }
 
-    // Konversi ke interface StaffMember
-    const staffMembers: StaffMember[] = dbStaff.map((s) => ({
-      id: s.id,
-      name: s.name,
-      role: s.role,
-      department: s.department,
-      shiftDuration: s.shiftDuration,
-      workdaysPerMonth: s.workdaysPerMonth,
-      experienceYears: s.experienceYears,
-      satisfactionScore: s.satisfactionScore,
-    }));
+    const deptsToRun = department === "ALL" 
+      ? Array.from(new Set(dbStaff.map(s => s.department).filter(Boolean))) as string[]
+      : [department];
 
-    // 2. Buat daftar slot shift berdasarkan hari dan jenis shift
-    const slots: ShiftSlot[] = [];
-    const baseDate = new Date(startDate);
-    // Tentukan jumlah staf per slot agar rasio kerja seimbang dan tidak menabrak batas 40 jam/minggu.
-    // Batas maksimal mutlak adalah 5 hari dari 7 hari (0.71).
-    // Kita turunkan target beban kerja harian menjadi 0.5 (sekitar 3.5 shift per minggu per staf) 
-    // agar algoritma memiliki ruang gerak yang cukup untuk menghindari double-shift dan bentrok.
-    const targetDailyWorkingRatio = 0.5; 
-    const ratioPerShift = targetDailyWorkingRatio / selectedShiftTypes.length;
-    const requiredCountPerSlot = Math.max(1, Math.round(dbStaff.length * ratioPerShift));
+    let allDraftShifts: any[] = [];
+    let combinedResult: GAOptimizationResult = { 
+      fitnessScore: 10000, 
+      bestSchedule: [], 
+      violations: { doubleShift: 0, maxWorkdaysExceeded: 0, experienceMismatch: 0, workloadImbalance: 0 }, 
+      generationsRun: 0, 
+      executionTimeMs: 0,
+      department: "ALL",
+      staffCount: dbStaff.length
+    };
 
-    for (let i = 0; i < daysCount; i++) {
-      const currentDate = new Date(baseDate);
-      currentDate.setDate(baseDate.getDate() + i);
-      const dateStr = currentDate.toISOString().split("T")[0];
+    for (const dept of deptsToRun) {
+      const deptDbStaff = dbStaff.filter(s => s.department === dept);
+      if (deptDbStaff.length < 2) continue; // Skip jika staf tidak cukup
 
-      for (const shiftType of selectedShiftTypes) {
-        let startHour = 8;
-        let endHour = 16;
-        let nextDay = false;
+      // Konversi ke interface StaffMember
+      const staffMembers: StaffMember[] = deptDbStaff.map((s) => ({
+        id: s.id,
+        name: s.name,
+        role: s.role,
+        department: s.department,
+        shiftDuration: s.shiftDuration,
+        workdaysPerMonth: s.workdaysPerMonth,
+        experienceYears: s.experienceYears,
+        satisfactionScore: s.satisfactionScore,
+      }));
 
-        if (shiftType === "Shift Pagi") {
-          startHour = 8;
-          endHour = 16;
-        } else if (shiftType === "Shift Sore") {
-          startHour = 16;
-          endHour = 24;
-        } else if (shiftType === "Shift Malam") {
-          startHour = 0;
-          endHour = 8;
-          nextDay = false; // 00:00 hingga 08:00 ada di hari yang sama
+      // 2. Buat daftar slot shift berdasarkan hari dan jenis shift
+      const slots: ShiftSlot[] = [];
+      const baseDate = new Date(startDate);
+      
+      // Sesuai instruksi mutlak: 6 orang di tiap departemen per shift
+      const requiredCountPerSlot = 6;
+
+      for (let i = 0; i < daysCount; i++) {
+        const currentDate = new Date(baseDate);
+        currentDate.setDate(baseDate.getDate() + i);
+        const dateStr = currentDate.toISOString().split("T")[0];
+
+        for (const shiftType of selectedShiftTypes) {
+          let startHour = 8;
+          let endHour = 16;
+          let nextDay = false;
+
+          if (shiftType === "Shift Pagi") {
+            startHour = 8;
+            endHour = 16;
+          } else if (shiftType === "Shift Sore") {
+            startHour = 16;
+            endHour = 24;
+          } else if (shiftType === "Shift Malam") {
+            startHour = 0;
+            endHour = 8;
+            nextDay = false; // 00:00 hingga 08:00 ada di hari yang sama
+          }
+
+          const startTime = new Date(`${dateStr}T00:00:00.000Z`);
+          startTime.setUTCHours(startHour, 0, 0, 0);
+
+          const endTime = new Date(`${dateStr}T00:00:00.000Z`);
+          if (nextDay || endHour === 24) {
+            endTime.setDate(endTime.getDate() + 1);
+            endTime.setUTCHours(endHour === 24 ? 0 : endHour, 0, 0, 0);
+          } else {
+            endTime.setUTCHours(endHour, 0, 0, 0);
+          }
+
+          slots.push({
+            id: `${dateStr}_${shiftType}`,
+            date: dateStr,
+            title: shiftType,
+            startTime,
+            endTime,
+            requiredCount: requiredCountPerSlot,
+          });
         }
-
-        const startTime = new Date(`${dateStr}T00:00:00.000Z`);
-        startTime.setUTCHours(startHour, 0, 0, 0);
-
-        const endTime = new Date(`${dateStr}T00:00:00.000Z`);
-        if (nextDay || endHour === 24) {
-          endTime.setDate(endTime.getDate() + 1);
-          endTime.setUTCHours(endHour === 24 ? 0 : endHour, 0, 0, 0);
-        } else {
-          endTime.setUTCHours(endHour, 0, 0, 0);
-        }
-
-        slots.push({
-          id: `${dateStr}_${shiftType}`,
-          date: dateStr,
-          title: shiftType,
-          startTime,
-          endTime,
-          requiredCount: requiredCountPerSlot,
-        });
       }
+
+      // 3. Eksekusi Algoritma Genetika KHUSUS untuk departemen ini
+      const optimizer = new ShiftGeneticOptimizer(staffMembers, slots);
+      const gaResult = optimizer.optimize(dept);
+
+      if (gaResult.bestSchedule.length === 0) continue;
+
+      // 4. Buat objek Draft Shifts untuk di-preview di UI
+      const deptDraftShifts = gaResult.bestSchedule.map((item, index) => {
+        const emp = deptDbStaff.find(s => s.id === item.employeeId);
+        return {
+          id: `draft_${dept}_${index}_${Date.now()}`,
+          title: item.shiftSlot.title,
+          startTime: item.shiftSlot.startTime,
+          endTime: item.shiftSlot.endTime,
+          employeeId: item.employeeId,
+          status: "DRAFT",
+          employee: emp ? {
+            id: emp.id,
+            name: emp.name,
+            role: emp.role,
+            department: emp.department,
+            experienceYears: emp.experienceYears,
+            kaggleStaffId: emp.kaggleStaffId,
+          } : null,
+        };
+      });
+
+      allDraftShifts = allDraftShifts.concat(deptDraftShifts);
+      
+      // Gabungkan hasil statistik
+      combinedResult.bestSchedule = combinedResult.bestSchedule.concat(gaResult.bestSchedule);
+      combinedResult.fitnessScore = Math.min(combinedResult.fitnessScore, gaResult.fitnessScore);
+      combinedResult.violations.doubleShift += gaResult.violations.doubleShift;
+      combinedResult.violations.maxWorkdaysExceeded += gaResult.violations.maxWorkdaysExceeded;
+      combinedResult.violations.experienceMismatch += gaResult.violations.experienceMismatch;
+      combinedResult.violations.workloadImbalance += gaResult.violations.workloadImbalance;
+      combinedResult.generationsRun = Math.max(combinedResult.generationsRun, gaResult.generationsRun);
+      combinedResult.executionTimeMs += gaResult.executionTimeMs;
     }
 
-    // 3. Eksekusi Algoritma Genetika
-    const optimizer = new ShiftGeneticOptimizer(staffMembers, slots);
-    const gaResult = optimizer.optimize(department);
-
-    if (gaResult.bestSchedule.length === 0) {
-      return { success: false, error: "Algoritma Genetika gagal menghasilkan konfigurasi jadwal yang valid." };
+    if (allDraftShifts.length === 0) {
+      return { success: false, error: "Algoritma Genetika gagal menghasilkan konfigurasi jadwal yang valid untuk departemen mana pun." };
     }
 
-    // 4. Buat objek Draft Shifts untuk di-preview di UI (tanpa menyimpan ke DB)
-    const draftShifts = gaResult.bestSchedule.map((item, index) => {
-      const emp = dbStaff.find(s => s.id === item.employeeId);
-      return {
-        id: `draft_${index}_${Date.now()}`,
-        title: item.shiftSlot.title,
-        startTime: item.shiftSlot.startTime,
-        endTime: item.shiftSlot.endTime,
-        employeeId: item.employeeId,
-        status: "DRAFT",
-        employee: emp ? {
-          id: emp.id,
-          name: emp.name,
-          role: emp.role,
-          department: emp.department,
-          experienceYears: emp.experienceYears,
-          kaggleStaffId: emp.kaggleStaffId,
-        } : null,
-      };
-    });
-
-    return { success: true, result: gaResult, draftShifts };
+    return { success: true, result: combinedResult, draftShifts: allDraftShifts };
   } catch (error) {
     console.error("Gagal mengeksekusi penjadwalan otomatis Algoritma Genetika:", error);
     return { success: false, error: "Terjadi kesalahan sistem saat menjalankan optimasi jadwal AI." };

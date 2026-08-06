@@ -151,18 +151,7 @@ export default function EmployeeModal({
               />
             </div>
 
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Jabatan / Peran (Role)</label>
-              <select
-                className="custom-select"
-                value={formData.role}
-                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-              >
-                <option value="STAFF">STAFF (Karyawan Operasional)</option>
-                <option value="MANAGER">MANAGER (Koordinator Shift)</option>
-              </select>
-            </div>
-            
+
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1.25rem" }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Departemen / Unit</label>

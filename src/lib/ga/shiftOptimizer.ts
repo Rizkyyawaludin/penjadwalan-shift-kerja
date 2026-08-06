@@ -60,7 +60,7 @@ export class ShiftGeneticOptimizer {
 
   constructor(staff: StaffMember[], slots: ShiftSlot[]) {
     this.staff = staff;
-    this.slots = slots;
+    this.slots = [...slots].sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
     this.staffMap = new Map(staff.map(s => [s.id, s]));
   }
 
@@ -162,6 +162,13 @@ export class ShiftGeneticOptimizer {
     };
   }
 
+  private getMaxShiftsForStaff(emp: StaffMember): number {
+    const minRequiredPerStaff = Math.ceil(this.totalRequiredShifts / Math.max(1, this.staff.length));
+    const maxAllowedKaggle = emp.workdaysPerMonth || 22;
+    const proportionalKaggle = Math.ceil((maxAllowedKaggle / 30) * Math.max(this.totalDaysInPeriod, 7)) + 1;
+    return Math.max(this.maxShiftsBy40HourRule, minRequiredPerStaff, proportionalKaggle);
+  }
+
   private generateRandomChromosome(): Chromosome {
     const chromosome: Chromosome = [];
     let staffPool = [...this.staff].sort(() => Math.random() - 0.5);
@@ -174,9 +181,6 @@ export class ShiftGeneticOptimizer {
       empSlots[emp.id] = [];
       staffShiftCountMap[emp.id] = 0;
     }
-
-    // Aturan Jam Kerja: Maksimal 40 jam per minggu (5 shift x 8 jam)
-    const maxShiftsBy40HourRule = this.maxShiftsBy40HourRule;
 
     for (const slot of this.slots) {
       const assigned: string[] = [];
@@ -193,7 +197,7 @@ export class ShiftGeneticOptimizer {
         // SERTA memiliki gap istirahat minimal 8 jam dari shift sebelumnya/sesudahnya
         let idx = staffPool.findIndex(s => {
           if (assigned.includes(s.id) || dailyAssigned[slot.date].has(s.id)) return false;
-          if (staffShiftCountMap[s.id] >= maxShiftsBy40HourRule) return false; // Cek batas max 40 jam kerja (5 shift)
+          if (staffShiftCountMap[s.id] >= this.getMaxShiftsForStaff(s)) return false;
           
           for (const assignedSlot of empSlots[s.id]) {
             const gap1 = slot.startTime.getTime() - assignedSlot.endTime.getTime();
@@ -204,9 +208,9 @@ export class ShiftGeneticOptimizer {
           return true;
         });
         
-        // Fallback 1: abaikan rest time gap, tapi tetap beda hari & patuhi batas max 40 jam
+        // Fallback 1: abaikan rest time gap, tapi tetap beda hari & patuhi batas jam
         if (idx === -1) {
-          idx = staffPool.findIndex(s => !assigned.includes(s.id) && !dailyAssigned[slot.date].has(s.id) && staffShiftCountMap[s.id] < maxShiftsBy40HourRule);
+          idx = staffPool.findIndex(s => !assigned.includes(s.id) && !dailyAssigned[slot.date].has(s.id) && staffShiftCountMap[s.id] < this.getMaxShiftsForStaff(s));
         }
         // Fallback 2: terpaksa abaikan hari dan batas jam jika sangat kekurangan staf
         if (idx === -1) {
@@ -270,7 +274,7 @@ export class ShiftGeneticOptimizer {
         // Hard Constraint 1: Double Shift check
         if (dailyAssigned[slot.date].has(empId)) {
           violations.doubleShift++;
-          score -= 5000; // Pinalti sangat fatal untuk double shift (ditingkatkan agar tidak bisa dikalahkan oleh bonus)
+          score -= 5000; // Pinalti sangat fatal untuk double shift
         } else {
           dailyAssigned[slot.date].add(empId);
         }
@@ -290,35 +294,29 @@ export class ShiftGeneticOptimizer {
     }
 
     // Hard Constraint 1.5: Minimum Rest Time (8 hours) check
-    // Ini mencegah Shift Sore hari ini dilanjut Shift Malam keesokan harinya tanpa jeda
     for (const emp of this.staff) {
-      // Karena slots dikumpulkan secara kronologis di perulangan atas, empSlotsMap[emp.id] sudah terurut.
-      // Menghapus .sort() di sini menghemat jutaan operasi CPU!
       const slots = empSlotsMap[emp.id];
+      // Urutkan slot per perawat berdasarkan waktu mulai secara kronologis
+      if (slots.length > 1) {
+        slots.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+      }
       for (let i = 1; i < slots.length; i++) {
         const gapHours = (slots[i].startTime.getTime() - slots[i-1].endTime.getTime()) / (1000 * 60 * 60);
         if (gapHours < 8) {
-          violations.doubleShift++; // Kita gabungkan ke counter doubleShift karena sama-sama pelanggaran waktu istirahat
+          violations.doubleShift++; 
           score -= 5000; 
         }
       }
     }
 
     // Hard Constraint 2: Max 40 Jam Kerja (5 Shift) & Max Workdays Exceeded dari Dataset Kaggle
-    // Menggunakan variabel global yang sudah dikalkulasi 1x di atas
     for (const emp of this.staff) {
       const totalShifts = staffShiftCount[emp.id] || 0;
-      const maxAllowedKaggle = emp.workdaysPerMonth || 20;
-
-      // Proposional batas kerja Kaggle jika periode penjadwalan kurang dari sebulan
-      const proportionalKaggle = Math.ceil((maxAllowedKaggle / 30) * Math.max(this.totalDaysInPeriod, 7)) + 1;
-
-      // Gunakan aturan yang paling ketat antara limit 40 jam atau limit bulanan Kaggle
-      const strictLimit = Math.min(this.maxShiftsBy40HourRule, proportionalKaggle);
+      const strictLimit = this.getMaxShiftsForStaff(emp);
 
       if (totalShifts > strictLimit) {
         violations.maxWorkdaysExceeded++;
-        score -= 2000 * (totalShifts - strictLimit); // Penalti sangat berat jika melebihi batas jam kerja
+        score -= 2000 * (totalShifts - strictLimit);
       }
     }
 

@@ -64,7 +64,7 @@ export async function getDatasetStats(): Promise<{ success: boolean; data?: Kagg
   }
 }
 
-export async function importKaggleDataset(targetDepartment?: string, limitPerDept: number = 25): Promise<{ success: boolean; count?: number; message?: string; error?: string }> {
+export async function importKaggleDataset(targetDepartment?: string, limitPerDept: number = 26): Promise<{ success: boolean; count?: number; message?: string; error?: string }> {
   try {
     const csvPath = path.join(process.cwd(), "data", "kaggle_staff_scheduling.csv");
     if (!fs.existsSync(csvPath)) {
@@ -78,7 +78,7 @@ export async function importKaggleDataset(targetDepartment?: string, limitPerDep
       return { success: false, error: "File CSV dataset kosong atau tidak valid." };
     }
 
-    // Header: Staff ID,Department,Shift Duration (Hours),Patient Load,Workdays per Month,Satisfaction Score,Overtime Hours,Years of Experience,Previous Satisfaction Rating,Absenteeism (Days)
+    // Header: Staff ID,Department,Shift Duration (Hours),Workdays per Month,Satisfaction Score,Years of Experience
     const dataLines = lines.slice(1);
 
     // Filter by department jika ada
@@ -109,27 +109,21 @@ export async function importKaggleDataset(targetDepartment?: string, limitPerDep
 
     for (let i = 0; i < selectedLines.length; i++) {
       const cols = selectedLines[i].split(",");
-      if (cols.length < 10) continue;
+      if (cols.length < 6) continue;
 
       const staffId = cols[0]; // S00000
       const department = cols[1]; // Pediatrics, ER, dll
       const shiftDuration = parseInt(cols[2], 10) || 8;
-      const workdaysPerMonth = parseInt(cols[4], 10) || 20;
-      const satisfactionScore = parseFloat(cols[5]) || 3.5;
-      const experienceYears = parseInt(cols[7], 10) || 5;
+      const workdaysPerMonth = parseInt(cols[3], 10) || 20;
+      const satisfactionScore = parseFloat(cols[4]) || 3.5;
+      const experienceYears = parseInt(cols[5], 10) || 5;
 
       const name = generateRealisticName(staffId, department, i);
       const email = `${staffId.toLowerCase()}@shiftmaster.pro`;
-      let role = "Perawat"; // Default untuk ER & ICU
-      
-      if (department === "General Medicine" || department === "Pediatrics") {
-        role = "Dokter";
-      }
 
+      // Semua staf dari dataset Kaggle adalah Perawat
       // Klasifikasikan tingkat senioritas berdasarkan pengalaman
-      if (experienceYears >= 10) {
-        role = `Senior ${role}`; // Hasil: "Senior Dokter" atau "Senior Perawat"
-      }
+      const role = experienceYears >= 10 ? "Senior Perawat" : "Perawat";
 
       await prisma.employee.upsert({
         where: { kaggleStaffId: staffId },
@@ -164,7 +158,7 @@ export async function importKaggleDataset(targetDepartment?: string, limitPerDep
     return {
       success: true,
       count: importedCount,
-      message: `Berhasil mengimpor dan memperbarui ${importedCount} data staf medis dari dataset Kaggle ke database!`,
+      message: `Berhasil mengimpor dan memperbarui ${importedCount} perawat dari dataset Kaggle ke database!`,
     };
   } catch (error) {
     console.error("Gagal mengimpor dataset Kaggle:", error);

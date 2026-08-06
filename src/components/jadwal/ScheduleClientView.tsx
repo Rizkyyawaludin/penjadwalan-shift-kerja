@@ -1,18 +1,18 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { 
-  Calendar, 
-  Sparkles, 
-  Download, 
-  Database, 
-  Trash2, 
-  Loader2, 
-  Filter, 
-  Clock, 
-  User, 
-  Award, 
-  Layers, 
+import {
+  Calendar,
+  Sparkles,
+  Download,
+  Database,
+  Trash2,
+  Loader2,
+  Filter,
+  Clock,
+  User,
+  Award,
+  Layers,
   AlertCircle,
   CheckCircle2,
   Save,
@@ -30,16 +30,27 @@ interface ScheduleClientViewProps {
   initialEmployees: any[];
 }
 
+// Pesan informatif yang diputar bergiliran saat GA berjalan
+const GA_LOADING_LABELS = [
+  "Menginisialisasi populasi GA...",
+  "Mengevaluasi kromosom generasi awal...",
+  "Seleksi & crossover berlangsung...",
+  "Mutasi & optimasi jadwal...",
+  "Mengeliminasi bentrok shift...",
+  "Menyeimbangkan beban kerja...",
+  "Hampir selesai, finalisasi hasil...",
+];
+
 export default function ScheduleClientView({ initialShifts, initialStats, initialEmployees }: ScheduleClientViewProps) {
   const [shifts, setShifts] = useState(initialShifts);
   const [stats, setStats] = useState<KaggleDatasetStats>(initialStats);
   const [employees, setEmployees] = useState(initialEmployees);
-  
+
   // State Draft Mode
   const [isDraftMode, setIsDraftMode] = useState(false);
   const [draftShifts, setDraftShifts] = useState<any[]>([]);
   const [loadingSaveDraft, setLoadingSaveDraft] = useState(false);
-  
+
   // State Generator
   const [targetDept, setTargetDept] = useState("ALL");
   const [startDate, setStartDate] = useState(() => {
@@ -52,13 +63,14 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
   });
   const [daysCount, setDaysCount] = useState<number>(7);
   const [selectedShiftTypes, setSelectedShiftTypes] = useState<string[]>(["Shift Pagi", "Shift Sore", "Shift Malam"]);
-  
+
   // State UI & Loading
   const [loadingImport, setLoadingImport] = useState(false);
   const [loadingGenerate, setLoadingGenerate] = useState(false);
+  const [generatePhase, setGeneratePhase] = useState(0); // cycling label index saat loading
   const [loadingClear, setLoadingClear] = useState(false);
   const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
-  
+
   // State Modal & View
   const [gaResult, setGaResult] = useState<GAOptimizationResult | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -71,6 +83,16 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
   useEffect(() => {
     setCurrentPage(1);
   }, [shifts, draftShifts]);
+
+  // Saat generate sedang berjalan, putar pesan informatif tiap 2 detik
+  // agar user tahu proses berjalan (tidak freeze) meskipun server action synchronous
+  useEffect(() => {
+    if (!loadingGenerate) return;
+    const interval = setInterval(() => {
+      setGeneratePhase(prev => (prev + 1) % GA_LOADING_LABELS.length);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [loadingGenerate]);
 
   const refreshData = useCallback(async (dept: string) => {
     try {
@@ -107,7 +129,7 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
     setLoadingImport(true);
     setNotification(null);
     try {
-      const res = await importKaggleDataset(targetDept === "ALL" ? undefined : targetDept, 30);
+      const res = await importKaggleDataset(targetDept === "ALL" ? undefined : targetDept, 26);
       if (!res.success) {
         setNotification({ type: "error", message: res.error || "Gagal mengimpor dataset Kaggle." });
       } else {
@@ -122,6 +144,7 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
   };
 
   const handleGenerateGA = async () => {
+    setGeneratePhase(0);
     setLoadingGenerate(true);
     setNotification(null);
     try {
@@ -178,7 +201,7 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
   const handleDraftEmployeeChange = (shiftId: string, newEmployeeId: string) => {
     const selectedEmp = employees.find((e: any) => e.id === newEmployeeId);
     if (!selectedEmp) return;
-    
+
     setDraftShifts(prev => prev.map(shift => {
       if (shift.id === shiftId) {
         return {
@@ -241,10 +264,10 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
       const empName = shift.employee?.name;
       if (!empName) return;
       if (!map.has(empName)) {
-        map.set(empName, { 
-          dept: shift.employee?.department, 
+        map.set(empName, {
+          dept: shift.employee?.department,
           total: 0,
-          shiftsByDate: {} 
+          shiftsByDate: {}
         });
       }
       const data = map.get(empName);
@@ -257,14 +280,14 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
 
   const handleExportCSV = () => {
     const headers = ["Tanggal", "Shift", "Waktu Mulai", "Waktu Selesai", "Nama Karyawan", "Departemen", "Total Beban Shift"];
-    
+
     const rows = shifts.map(shift => {
       const date = formatDateTime(shift.startTime).split(",")[0];
       const startTime = formatTime(shift.startTime);
       const endTime = formatTime(shift.endTime);
       const empId = shift.employeeId || shift.employee?.id;
       const totalShift = employeeShiftCounts[empId] || 0;
-      
+
       return [
         `"${date}"`,
         `"${shift.title}"`,
@@ -275,7 +298,7 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
         `"${totalShift}"`
       ];
     });
-    
+
     const csvContent = [headers.join(","), ...rows.map(row => row.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -303,7 +326,8 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-      <style dangerouslySetInnerHTML={{__html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         @media screen {
           .screen-hidden { display: none !important; }
         }
@@ -372,7 +396,7 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
           display: none;
         }
       `}} />
-      
+
       {/* Notifikasi Banner */}
       {notification && (
         <div style={{
@@ -458,10 +482,10 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
       {/* Bagian 2: AI Schedule Generator Controls */}
       <div className="card no-print" style={{ background: "#ffffff", border: "1px solid #e2e8f0", padding: "1.75rem", borderRadius: "1rem", boxShadow: "0 4px 20px -2px rgba(0, 0, 0, 0.03)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.75rem", paddingBottom: "1.25rem", borderBottom: "1px solid #f1f5f9" }}>
-          <div style={{ 
-            padding: "0.75rem", borderRadius: "0.75rem", 
-            background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)", 
-            color: "#ffffff", boxShadow: "0 4px 10px rgba(15, 23, 42, 0.25)" 
+          <div style={{
+            padding: "0.75rem", borderRadius: "0.75rem",
+            background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
+            color: "#ffffff", boxShadow: "0 4px 10px rgba(15, 23, 42, 0.25)"
           }}>
             <Sparkles size={22} />
           </div>
@@ -475,7 +499,7 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
           </div>
         </div>
 
-        <div style={{ 
+        <div style={{
           display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1.25rem",
           background: "#f8fafc", padding: "1.25rem", borderRadius: "0.75rem", border: "1px solid #f1f5f9"
         }}>
@@ -488,13 +512,13 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
               className="input-field"
               value={targetDept}
               onChange={(e) => setTargetDept(e.target.value)}
-              style={{ 
-                background: "#ffffff", 
-                border: "2px solid #e2e8f0", 
-                padding: "0.75rem 1rem", 
-                borderRadius: "0.5rem", 
-                fontSize: "0.95rem", 
-                fontWeight: 600, 
+              style={{
+                background: "#ffffff",
+                border: "2px solid #e2e8f0",
+                padding: "0.75rem 1rem",
+                borderRadius: "0.5rem",
+                fontSize: "0.95rem",
+                fontWeight: 600,
                 color: "#0f172a",
                 boxShadow: "inset 0 2px 4px rgba(0,0,0,0.02)",
                 cursor: "pointer"
@@ -518,13 +542,13 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
               className="input-field"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              style={{ 
-                background: "#ffffff", 
-                border: "2px solid #e2e8f0", 
-                padding: "0.75rem 1rem", 
-                borderRadius: "0.5rem", 
-                fontSize: "0.95rem", 
-                fontWeight: 600, 
+              style={{
+                background: "#ffffff",
+                border: "2px solid #e2e8f0",
+                padding: "0.75rem 1rem",
+                borderRadius: "0.5rem",
+                fontSize: "0.95rem",
+                fontWeight: 600,
                 color: "#0f172a",
                 boxShadow: "inset 0 2px 4px rgba(0,0,0,0.02)",
                 cursor: "pointer"
@@ -541,13 +565,13 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
               className="input-field"
               value={daysCount}
               onChange={(e) => setDaysCount(Number(e.target.value))}
-              style={{ 
-                background: "#ffffff", 
-                border: "2px solid #e2e8f0", 
-                padding: "0.75rem 1rem", 
-                borderRadius: "0.5rem", 
-                fontSize: "0.95rem", 
-                fontWeight: 600, 
+              style={{
+                background: "#ffffff",
+                border: "2px solid #e2e8f0",
+                padding: "0.75rem 1rem",
+                borderRadius: "0.5rem",
+                fontSize: "0.95rem",
+                fontWeight: 600,
                 color: "#0f172a",
                 boxShadow: "inset 0 2px 4px rgba(0,0,0,0.02)",
                 cursor: "pointer"
@@ -569,7 +593,7 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
             {["Shift Pagi", "Shift Sore", "Shift Malam"].map((type) => {
               const isSelected = selectedShiftTypes.includes(type);
               return (
-                <div 
+                <div
                   key={type}
                   onClick={() => toggleShiftType(type)}
                   style={{
@@ -581,9 +605,9 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
                     boxShadow: isSelected ? "0 4px 10px -2px rgba(15, 23, 42, 0.15)" : "none"
                   }}
                 >
-                  <div style={{ 
-                    width: "22px", height: "22px", borderRadius: "6px", 
-                    background: isSelected ? "#0f172a" : "#f1f5f9", 
+                  <div style={{
+                    width: "22px", height: "22px", borderRadius: "6px",
+                    background: isSelected ? "#0f172a" : "#f1f5f9",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     border: `1px solid ${isSelected ? "#0f172a" : "#cbd5e1"}`,
                     transition: "all 0.2s ease"
@@ -611,7 +635,7 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
             className="btn btn-danger"
             onClick={handleClearSchedules}
             disabled={loadingClear || shifts.length === 0}
-            style={{ 
+            style={{
               background: "transparent", color: "var(--danger)", border: "2px solid #fecaca",
               padding: "0.75rem 1.25rem", borderRadius: "0.5rem", fontWeight: 600, transition: "all 0.2s"
             }}
@@ -625,7 +649,7 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
             className="btn btn-primary"
             onClick={handleGenerateGA}
             disabled={loadingGenerate || selectedShiftTypes.length === 0}
-            style={{ 
+            style={{
               background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
               border: "none",
               color: "#ffffff",
@@ -635,10 +659,27 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
             }}
           >
             {loadingGenerate ? (
-              <>
-                <Loader2 size={18} className="animate-spin" style={{ animation: "spin 1s linear infinite" }} />
-                <span>Kalkulasi Algoritma Genetika...</span>
-              </>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.35rem", width: "100%" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                  <Loader2 size={18} style={{ animation: "spin 1s linear infinite", flexShrink: 0 }} />
+                  <span style={{ fontSize: "0.9rem" }}>Algoritma Genetika Berjalan...</span>
+                </div>
+                <span
+                  key={generatePhase}
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 400,
+                    opacity: 0.8,
+                    animation: "slideUp 0.4s ease",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    maxWidth: "260px"
+                  }}
+                >
+                  {GA_LOADING_LABELS[generatePhase]}
+                </span>
+              </div>
             ) : (
               <>
                 <Sparkles size={18} />
@@ -651,7 +692,7 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
 
       {/* Bagian 3: Hasil Jadwal Shift */}
       <div className="card print-area" style={{ background: "#ffffff", border: "1px solid #e2e8f0", padding: 0, overflow: "hidden" }}>
-        
+
         {/* Print Header untuk PDF */}
         <div className="print-header">
           <h2 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>Jadwal Shift Karyawan</h2>
@@ -708,13 +749,13 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
               {shifts.length > 0 && (
                 <>
                   <div className="no-print" style={{ display: "flex", gap: "0.25rem", background: "#f1f5f9", padding: "0.25rem", borderRadius: "0.5rem", marginRight: "0.5rem" }}>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => setViewMode("matrix")}
                       style={{ padding: "0.3rem 0.6rem", fontSize: "0.75rem", fontWeight: 600, background: viewMode === "matrix" ? "#fff" : "transparent", color: viewMode === "matrix" ? "#0f172a" : "#64748b", borderRadius: "0.35rem", border: "none", boxShadow: viewMode === "matrix" ? "0 1px 2px rgba(0,0,0,0.05)" : "none", cursor: "pointer" }}
                     >Matriks</button>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => setViewMode("list")}
                       style={{ padding: "0.3rem 0.6rem", fontSize: "0.75rem", fontWeight: 600, background: viewMode === "list" ? "#fff" : "transparent", color: viewMode === "list" ? "#0f172a" : "#64748b", borderRadius: "0.35rem", border: "none", boxShadow: viewMode === "list" ? "0 1px 2px rgba(0,0,0,0.05)" : "none", cursor: "pointer" }}
                     >Daftar Baris</button>
@@ -789,13 +830,13 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
                       }
                       return (
                         <td key={dateKey} style={{ padding: "0.4rem", textAlign: "center", borderRight: "1px dashed #f1f5f9" }}>
-                           {shiftTitle ? (
-                             <div style={{ background: bg, color: textColor, fontSize: "0.75rem", fontWeight: 700, width: "24px", height: "24px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "0.3rem", margin: "0 auto" }} title={shiftTitle}>
-                               {text}
-                             </div>
-                           ) : (
-                             <span style={{ color: "#cbd5e1" }}>-</span>
-                           )}
+                          {shiftTitle ? (
+                            <div style={{ background: bg, color: textColor, fontSize: "0.75rem", fontWeight: 700, width: "24px", height: "24px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "0.3rem", margin: "0 auto" }} title={shiftTitle}>
+                              {text}
+                            </div>
+                          ) : (
+                            <span style={{ color: "#cbd5e1" }}>-</span>
+                          )}
                         </td>
                       );
                     })}
@@ -823,107 +864,107 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
                   const rowClass = isVisibleOnScreen ? "" : "screen-hidden";
 
                   return (
-                  <React.Fragment key={dateKey}>
-                    <tr className={rowClass} style={{ background: "#f1f5f9", borderBottom: "1px solid #e2e8f0" }}>
-                      <td colSpan={6} style={{ padding: "0.5rem 1.25rem", fontSize: "0.8rem", fontWeight: 700, color: "#0f172a" }}>
-                        📅 {formatDateTime(dateKey)}
-                      </td>
-                    </tr>
-                    {groupedShifts[dateKey].map((shift: any) => (
-                      <tr key={shift.id} className={rowClass} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                        <td style={{ padding: "0.85rem 1.25rem", fontSize: "0.85rem", color: "#334155", paddingLeft: "2.5rem" }}>
-                          {formatDateTime(shift.startTime).split(",")[0]}
-                        </td>
-                        <td style={{ padding: "0.85rem 1.25rem", fontSize: "0.85rem", color: "#0f172a", fontWeight: 600 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                            <Clock size={14} color="#64748b" />
-                            <span>{shift.title}</span>
-                          </div>
-                          <div style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 400, marginTop: "0.15rem" }}>
-                            {formatTime(shift.startTime)} - {formatTime(shift.endTime)}
-                          </div>
-                        </td>
-                        <td style={{ padding: "0.85rem 1.25rem" }}>
-                          {isDraftMode ? (
-                            <select
-                              value={shift.employeeId}
-                              onChange={(e) => handleDraftEmployeeChange(shift.id, e.target.value)}
-                              style={{
-                                width: "100%",
-                                padding: "0.4rem",
-                                borderRadius: "0.4rem",
-                                border: "1px solid #cbd5e1",
-                                background: "#fff",
-                                fontSize: "0.85rem",
-                                fontWeight: 500,
-                                color: "#0f172a",
-                                cursor: "pointer"
-                              }}
-                            >
-                              <option value="" disabled>Pilih Staf</option>
-                              {employees
-                                .filter((e: any) => targetDept === "ALL" || e.department === targetDept)
-                                .map((emp: any) => (
-                                <option key={emp.id} value={emp.id}>
-                                  {emp.name} ({emp.experienceYears} thn)
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <>
-                              <div style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.9rem" }}>{shift.employee?.name || "Staf Tidak Dikenal"}</div>
-                              {shift.employee?.experienceYears && (
-                                <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Pengalaman: {shift.employee.experienceYears} Tahun</div>
-                              )}
-                            </>
-                          )}
-                        </td>
-                        <td style={{ padding: "0.85rem 1.25rem" }}>
-                          <span style={{
-                            padding: "0.25rem 0.6rem",
-                            borderRadius: "99px",
-                            fontSize: "0.75rem",
-                            fontWeight: 600,
-                            background: "#f1f5f9",
-                            color: "#0f172a",
-                            border: "1px solid #cbd5e1"
-                          }}>
-                            {shift.employee?.department || "Umum"}
-                          </span>
-                        </td>
-                        <td style={{ padding: "0.85rem 1.25rem", fontSize: "0.85rem", color: "#0f172a", fontWeight: 700 }}>
-                          {employeeShiftCounts[shift.employeeId || shift.employee?.id] || 0} <span style={{fontSize: "0.7rem", color: "#64748b", fontWeight: 500}}>Hari</span>
-                        </td>
-                        <td className="no-print" style={{ padding: "0.85rem 1.25rem" }}>
-                          <span style={{
-                            padding: "0.25rem 0.6rem",
-                            borderRadius: "99px",
-                            fontSize: "0.75rem",
-                            fontWeight: 700,
-                            background: isDraftMode ? "#fef3c7" : "#f0fdf4",
-                            color: isDraftMode ? "#d97706" : "#15803d",
-                            border: `1px solid ${isDraftMode ? "#fde68a" : "#bbf7d0"}`
-                          }}>
-                            {isDraftMode ? "DRAFT" : "AI SCHEDULED"}
-                          </span>
+                    <React.Fragment key={dateKey}>
+                      <tr className={rowClass} style={{ background: "#f1f5f9", borderBottom: "1px solid #e2e8f0" }}>
+                        <td colSpan={6} style={{ padding: "0.5rem 1.25rem", fontSize: "0.8rem", fontWeight: 700, color: "#0f172a" }}>
+                          📅 {formatDateTime(dateKey)}
                         </td>
                       </tr>
-                    ))}
-                  </React.Fragment>
+                      {groupedShifts[dateKey].map((shift: any) => (
+                        <tr key={shift.id} className={rowClass} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "0.85rem 1.25rem", fontSize: "0.85rem", color: "#334155", paddingLeft: "2.5rem" }}>
+                            {formatDateTime(shift.startTime).split(",")[0]}
+                          </td>
+                          <td style={{ padding: "0.85rem 1.25rem", fontSize: "0.85rem", color: "#0f172a", fontWeight: 600 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                              <Clock size={14} color="#64748b" />
+                              <span>{shift.title}</span>
+                            </div>
+                            <div style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 400, marginTop: "0.15rem" }}>
+                              {formatTime(shift.startTime)} - {formatTime(shift.endTime)}
+                            </div>
+                          </td>
+                          <td style={{ padding: "0.85rem 1.25rem" }}>
+                            {isDraftMode ? (
+                              <select
+                                value={shift.employeeId}
+                                onChange={(e) => handleDraftEmployeeChange(shift.id, e.target.value)}
+                                style={{
+                                  width: "100%",
+                                  padding: "0.4rem",
+                                  borderRadius: "0.4rem",
+                                  border: "1px solid #cbd5e1",
+                                  background: "#fff",
+                                  fontSize: "0.85rem",
+                                  fontWeight: 500,
+                                  color: "#0f172a",
+                                  cursor: "pointer"
+                                }}
+                              >
+                                <option value="" disabled>Pilih Staf</option>
+                                {employees
+                                  .filter((e: any) => targetDept === "ALL" || e.department === targetDept)
+                                  .map((emp: any) => (
+                                    <option key={emp.id} value={emp.id}>
+                                      {emp.name} ({emp.experienceYears} thn)
+                                    </option>
+                                  ))}
+                              </select>
+                            ) : (
+                              <>
+                                <div style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.9rem" }}>{shift.employee?.name || "Staf Tidak Dikenal"}</div>
+                                {shift.employee?.experienceYears && (
+                                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Pengalaman: {shift.employee.experienceYears} Tahun</div>
+                                )}
+                              </>
+                            )}
+                          </td>
+                          <td style={{ padding: "0.85rem 1.25rem" }}>
+                            <span style={{
+                              padding: "0.25rem 0.6rem",
+                              borderRadius: "99px",
+                              fontSize: "0.75rem",
+                              fontWeight: 600,
+                              background: "#f1f5f9",
+                              color: "#0f172a",
+                              border: "1px solid #cbd5e1"
+                            }}>
+                              {shift.employee?.department || "Umum"}
+                            </span>
+                          </td>
+                          <td style={{ padding: "0.85rem 1.25rem", fontSize: "0.85rem", color: "#0f172a", fontWeight: 700 }}>
+                            {employeeShiftCounts[shift.employeeId || shift.employee?.id] || 0} <span style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 500 }}>Hari</span>
+                          </td>
+                          <td className="no-print" style={{ padding: "0.85rem 1.25rem" }}>
+                            <span style={{
+                              padding: "0.25rem 0.6rem",
+                              borderRadius: "99px",
+                              fontSize: "0.75rem",
+                              fontWeight: 700,
+                              background: isDraftMode ? "#fef3c7" : "#f0fdf4",
+                              color: isDraftMode ? "#d97706" : "#15803d",
+                              border: `1px solid ${isDraftMode ? "#fde68a" : "#bbf7d0"}`
+                            }}>
+                              {isDraftMode ? "DRAFT" : "AI SCHEDULED"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
             </table>
           </div>
         )}
-        
+
         {/* Pagination Controls */}
         {Object.keys(groupedShifts).length > itemsPerPage && displayShifts.length > 0 && (
-          <div className="no-print" style={{ 
-            display: "flex", 
-            justifyContent: "space-between", 
-            alignItems: "center", 
-            padding: "1rem 1.5rem", 
+          <div className="no-print" style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "1rem 1.5rem",
             borderTop: "1px solid #e2e8f0",
             background: "#f8fafc"
           }}>
@@ -931,17 +972,17 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
               Menampilkan halaman <strong style={{ color: "#0f172a" }}>{currentPage}</strong> dari <strong style={{ color: "#0f172a" }}>{Math.ceil(Object.keys(groupedShifts).length / itemsPerPage)}</strong>
             </div>
             <div style={{ display: "flex", gap: "0.5rem" }}>
-              <button 
+              <button
                 type="button"
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                style={{ 
-                  padding: "0.4rem 0.8rem", 
-                  fontSize: "0.85rem", 
-                  background: "#fff", 
+                style={{
+                  padding: "0.4rem 0.8rem",
+                  fontSize: "0.85rem",
+                  background: "#fff",
                   color: "#0f172a",
                   fontWeight: 500,
-                  border: "1px solid #cbd5e1", 
+                  border: "1px solid #cbd5e1",
                   borderRadius: "0.375rem",
                   cursor: currentPage === 1 ? "not-allowed" : "pointer",
                   opacity: currentPage === 1 ? 0.5 : 1,
@@ -950,17 +991,17 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
               >
                 &lt; Sebelumnya
               </button>
-              <button 
+              <button
                 type="button"
                 onClick={() => setCurrentPage(p => Math.min(Math.ceil(Object.keys(groupedShifts).length / itemsPerPage), p + 1))}
                 disabled={currentPage === Math.ceil(Object.keys(groupedShifts).length / itemsPerPage)}
-                style={{ 
-                  padding: "0.4rem 0.8rem", 
-                  fontSize: "0.85rem", 
+                style={{
+                  padding: "0.4rem 0.8rem",
+                  fontSize: "0.85rem",
                   background: "#fff",
-                  color: "#0f172a", 
+                  color: "#0f172a",
                   fontWeight: 500,
-                  border: "1px solid #cbd5e1", 
+                  border: "1px solid #cbd5e1",
                   borderRadius: "0.375rem",
                   cursor: currentPage === Math.ceil(Object.keys(groupedShifts).length / itemsPerPage) ? "not-allowed" : "pointer",
                   opacity: currentPage === Math.ceil(Object.keys(groupedShifts).length / itemsPerPage) ? 0.5 : 1,
