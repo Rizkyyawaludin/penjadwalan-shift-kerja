@@ -3,18 +3,20 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
+import {
   LayoutDashboard,
-  Users, 
-  Calendar, 
+  Users,
+  Calendar,
   CalendarDays,
+  CalendarOff,
   ListTodo,
-  FileText, 
-  Settings, 
-  Clock, 
+  FileText,
+  Settings,
+  Clock,
   ShieldCheck,
   LogOut
 } from "lucide-react";
+import { logout } from "@/actions/auth";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -32,6 +34,13 @@ export default function Sidebar() {
       href: "/dashboard/karyawan",
       icon: Users,
       active: pathname?.startsWith("/dashboard/karyawan"),
+      badge: null,
+    },
+    {
+      label: "Kelola Cuti",
+      href: "/dashboard/cuti",
+      icon: CalendarOff,
+      active: pathname?.startsWith("/dashboard/cuti"),
       badge: null,
     },
     {
@@ -108,6 +117,26 @@ export default function Sidebar() {
         })}
       </nav>
 
+      {/* User / Logout Section */}
+      <div style={{ marginTop: "auto", borderTop: "1px solid var(--border-light)", paddingTop: "1rem" }}>
+        <form action={logout}>
+          <button
+            type="submit"
+            className="nav-link"
+            style={{
+              background: "transparent",
+              border: "none",
+              width: "100%",
+              textAlign: "left",
+              color: "var(--danger)",
+              cursor: "pointer"
+            }}
+          >
+            <LogOut size={18} />
+            <span className="logo-text" style={{ flex: 1, fontSize: "0.875rem", fontWeight: 500 }}>Keluar</span>
+          </button>
+        </form>
+      </div>
 
     </aside>
   );

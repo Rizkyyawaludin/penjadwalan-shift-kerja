@@ -150,6 +150,17 @@ export default function GAStatsModal({ isOpen, onClose, result }: GAStatsModalPr
             </div>
 
             <div style={{ padding: "0.75rem 1rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+              {/* Leave Violation Check */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "0.85rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#334155" }}>
+                  <ShieldCheck size={16} color={(violations as any).leaveViolation === 0 || (violations as any).leaveViolation === undefined ? "#059669" : "#dc2626"} />
+                  <span>Penghormatan Periode Cuti</span>
+                </div>
+                <span style={{ fontWeight: 700, color: (violations as any).leaveViolation === 0 || (violations as any).leaveViolation === undefined ? "#059669" : "#dc2626" }}>
+                  {(violations as any).leaveViolation === 0 || (violations as any).leaveViolation === undefined ? "✅ Tidak Ada Bentrok Cuti" : `${(violations as any).leaveViolation} Bentrok Cuti`}
+                </span>
+              </div>
+
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "0.85rem" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#334155" }}>
                   <ShieldCheck size={16} color={violations.doubleShift === 0 ? "#059669" : "#dc2626"} />

@@ -39,7 +39,7 @@ export class ShiftGeneticOptimizerInteger {
         fitnessScore: 0,
         generationsRun: 0,
         executionTimeMs: 0,
-        violations: { doubleShift: 0, maxWorkdaysExceeded: 0, experienceMismatch: 0, workloadImbalance: 0 },
+        violations: { doubleShift: 0, maxWorkdaysExceeded: 0, experienceMismatch: 0, workloadImbalance: 0, leaveViolation: 0 },
         department,
         staffCount: this.staff.length,
       };
@@ -151,6 +151,7 @@ export class ShiftGeneticOptimizerInteger {
       maxWorkdaysExceeded: 0,
       experienceMismatch: 0,
       workloadImbalance: 0,
+      leaveViolation: 0,
     };
 
     const staffShiftCount: Record<number, number> = {};

@@ -871,14 +871,25 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
                         </td>
                       </tr>
                       {groupedShifts[dateKey].map((shift: any) => (
-                        <tr key={shift.id} className={rowClass} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <tr 
+                          key={shift.id} 
+                          className={rowClass} 
+                          style={{ borderBottom: "1px solid #f1f5f9", transition: "background 0.15s" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                        >
                           <td style={{ padding: "0.85rem 1.25rem", fontSize: "0.85rem", color: "#334155", paddingLeft: "2.5rem" }}>
                             {formatDateTime(shift.startTime).split(",")[0]}
                           </td>
                           <td style={{ padding: "0.85rem 1.25rem", fontSize: "0.85rem", color: "#0f172a", fontWeight: 600 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                              <Clock size={14} color="#64748b" />
-                              <span>{shift.title}</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                              <span style={{
+                                padding: "0.25rem 0.6rem", borderRadius: "0.35rem", fontSize: "0.75rem", fontWeight: 700,
+                                background: shift.title.includes("Pagi") ? "#fef3c7" : shift.title.includes("Sore") ? "#e0f2fe" : "#1e293b",
+                                color: shift.title.includes("Pagi") ? "#d97706" : shift.title.includes("Sore") ? "#0284c7" : "#ffffff"
+                              }}>
+                                {shift.title}
+                              </span>
                             </div>
                             <div style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 400, marginTop: "0.15rem" }}>
                               {formatTime(shift.startTime)} - {formatTime(shift.endTime)}

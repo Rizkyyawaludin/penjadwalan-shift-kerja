@@ -22,6 +22,7 @@ model Employee {
   experienceYears   Int?     // years of experience from Kaggle
   kaggleStaffId     String?  @unique // Kaggle ID e.g., S00000
   shifts            Shift[]
+  leaves            Leave[]
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
@@ -36,4 +37,25 @@ model Shift {
   status     String    @default("SCHEDULED") // SCHEDULED, COMPLETED, CANCELLED
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+}
+
+model Leave {
+  id         String   @id @default(cuid())
+  type       String   // "Cuti Melahirkan", "Cuti Sakit", "Izin Pribadi", dll.
+  startDate  DateTime
+  endDate    DateTime
+  notes      String?  // Catatan opsional dari admin
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

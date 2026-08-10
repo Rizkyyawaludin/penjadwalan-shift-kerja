@@ -6,7 +6,8 @@ import {
   ShiftGeneticOptimizer, 
   ShiftSlot, 
   StaffMember, 
-  GAOptimizationResult 
+  GAOptimizationResult,
+  LeavePeriod,
 } from "@/lib/ga/shiftOptimizer";
 
 export interface GenerateScheduleParams {
@@ -84,14 +85,32 @@ export async function generateAutomaticSchedule(params: GenerateScheduleParams):
       staffWhere.department = department;
     }
 
-    const dbStaff = await prisma.employee.findMany({
+    const dbStaffAll = await prisma.employee.findMany({
       where: staffWhere,
     });
 
+    // Filter karyawan yang sedang cuti pada periode jadwal
+    const scheduleStart = new Date(startDate);
+    const scheduleEnd = new Date(startDate);
+    scheduleEnd.setDate(scheduleEnd.getDate() + daysCount - 1);
+
+    const activeLeaves = await prisma.leave.findMany({
+      where: {
+        startDate: { lte: scheduleEnd },
+        endDate: { gte: scheduleStart },
+      },
+      select: { employeeId: true, startDate: true, endDate: true },
+    });
+
+    // Semua karyawan tetap masuk GA — leave handling dilakukan di level per-tanggal oleh optimizer
+    const dbStaff = dbStaffAll;
+
     if (dbStaff.length < 2) {
+      // Hitung jumlah karyawan yang cuti untuk pesan error yang informatif
+      const uniqueLeaveEmpIds = new Set(activeLeaves.map(l => l.employeeId));
       return {
         success: false,
-        error: `Jumlah staf di departemen (${department || "Semua"}) tidak mencukupi (${dbStaff.length} orang). Minimal dibutuhkan 2 staf untuk pembuatan jadwal otomatis. Silakan import dataset Kaggle terlebih dahulu.`,
+        error: `Jumlah staf aktif di departemen (${department || "Semua"}) tidak mencukupi (${dbStaff.length} orang tersedia, ${uniqueLeaveEmpIds.size} orang memiliki cuti dalam periode ini). Minimal dibutuhkan 2 staf untuk pembuatan jadwal otomatis.`,
       };
     }
 
@@ -103,7 +122,7 @@ export async function generateAutomaticSchedule(params: GenerateScheduleParams):
     let combinedResult: GAOptimizationResult = { 
       fitnessScore: 10000, 
       bestSchedule: [], 
-      violations: { doubleShift: 0, maxWorkdaysExceeded: 0, experienceMismatch: 0, workloadImbalance: 0 }, 
+      violations: { doubleShift: 0, maxWorkdaysExceeded: 0, experienceMismatch: 0, workloadImbalance: 0, leaveViolation: 0 }, 
       generationsRun: 0, 
       executionTimeMs: 0,
       department: "ALL",
@@ -114,17 +133,24 @@ export async function generateAutomaticSchedule(params: GenerateScheduleParams):
       const deptDbStaff = dbStaff.filter(s => s.department === dept);
       if (deptDbStaff.length < 2) continue; // Skip jika staf tidak cukup
 
-      // Konversi ke interface StaffMember
-      const staffMembers: StaffMember[] = deptDbStaff.map((s) => ({
-        id: s.id,
-        name: s.name,
-        role: s.role,
-        department: s.department,
-        shiftDuration: s.shiftDuration,
-        workdaysPerMonth: s.workdaysPerMonth,
-        experienceYears: s.experienceYears,
-        satisfactionScore: s.satisfactionScore,
-      }));
+      // Konversi ke interface StaffMember (termasuk data cuti sebagai LeavePeriod[])
+      const staffMembers: StaffMember[] = deptDbStaff.map((s) => {
+        const empLeaves: LeavePeriod[] = activeLeaves
+          .filter(l => l.employeeId === s.id)
+          .map(l => ({ startDate: new Date(l.startDate), endDate: new Date(l.endDate) }));
+          
+        return {
+          id: s.id,
+          name: s.name,
+          role: s.role,
+          department: s.department,
+          shiftDuration: s.shiftDuration,
+          workdaysPerMonth: s.workdaysPerMonth,
+          experienceYears: s.experienceYears,
+          satisfactionScore: s.satisfactionScore,
+          leaves: empLeaves,
+        };
+      });
 
       // 2. Buat daftar slot shift berdasarkan hari dan jenis shift
       const slots: ShiftSlot[] = [];
@@ -213,6 +239,7 @@ export async function generateAutomaticSchedule(params: GenerateScheduleParams):
       combinedResult.violations.maxWorkdaysExceeded += gaResult.violations.maxWorkdaysExceeded;
       combinedResult.violations.experienceMismatch += gaResult.violations.experienceMismatch;
       combinedResult.violations.workloadImbalance += gaResult.violations.workloadImbalance;
+      combinedResult.violations.leaveViolation += gaResult.violations.leaveViolation;
       combinedResult.generationsRun = Math.max(combinedResult.generationsRun, gaResult.generationsRun);
       combinedResult.executionTimeMs += gaResult.executionTimeMs;
     }
