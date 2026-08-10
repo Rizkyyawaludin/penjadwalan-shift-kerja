@@ -192,9 +192,6 @@ export default function GAStatsModal({ isOpen, onClose, result }: GAStatsModalPr
             </div>
           </div>
 
-          <div style={{ fontSize: "0.8rem", color: "#64748b", background: "#f8fafc", padding: "0.75rem", borderRadius: "0.5rem", border: "1px dashed #cbd5e1" }}>
-            💡 <strong>Catatan AI:</strong> Penjadwalan dihitung dari populasi acak menggunakan turnamen seleksi dan mutasi dengan tingkat konvergensi tinggi. Seluruh jadwal telah disimpan secara permanen ke dalam database PostgreSQL.
-          </div>
         </div>
 
         {/* Modal Footer */}
