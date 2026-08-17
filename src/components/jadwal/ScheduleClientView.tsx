@@ -17,7 +17,9 @@ import {
   CheckCircle2,
   Save,
   XCircle,
-  Printer
+  Printer,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { importKaggleDataset, getDatasetStats, KaggleDatasetStats } from "@/actions/dataset";
 import { generateAutomaticSchedule, clearAllSchedules, getSchedules, saveDraftSchedule } from "@/actions/jadwal";
@@ -926,11 +928,11 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
                               borderRadius: "99px",
                               fontSize: "0.75rem",
                               fontWeight: 700,
-                              background: isDraftMode ? "#fef3c7" : "#f0fdf4",
-                              color: isDraftMode ? "#d97706" : "#15803d",
-                              border: `1px solid ${isDraftMode ? "#fde68a" : "#bbf7d0"}`
+                              background: shift.status === "DRAFT" || isDraftMode ? "#fef3c7" : "#f0fdf4",
+                              color: shift.status === "DRAFT" || isDraftMode ? "#d97706" : "#15803d",
+                              border: `1px solid ${shift.status === "DRAFT" || isDraftMode ? "#fde68a" : "#bbf7d0"}`
                             }}>
-                              {isDraftMode ? "DRAFT" : "AI SCHEDULED"}
+                              {shift.status === "DRAFT" || isDraftMode ? "DRAFT" : "APPROVED"}
                             </span>
                           </td>
                         </tr>
@@ -944,60 +946,65 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
         )}
 
         {/* Pagination Controls */}
-        {Object.keys(groupedShifts).length > itemsPerPage && displayShifts.length > 0 && (
-          <div className="no-print" style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "1rem 1.5rem",
-            borderTop: "1px solid #e2e8f0",
-            background: "#f8fafc"
-          }}>
-            <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
-              Menampilkan halaman <strong style={{ color: "#0f172a" }}>{currentPage}</strong> dari <strong style={{ color: "#0f172a" }}>{Math.ceil(Object.keys(groupedShifts).length / itemsPerPage)}</strong>
+        {viewMode !== "matrix" && Object.keys(groupedShifts).length > itemsPerPage && displayShifts.length > 0 && (() => {
+          const totalItems = Object.keys(groupedShifts).length;
+          const totalPages = Math.ceil(totalItems / itemsPerPage);
+          return (
+            <div className="no-print" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.5rem", borderTop: "1px solid #e2e8f0", background: "#f8fafc", flexWrap: "wrap", gap: "1rem" }}>
+              <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
+                Menampilkan <span style={{ fontWeight: 600, color: "#0f172a" }}>{(currentPage - 1) * itemsPerPage + 1}</span> - <span style={{ fontWeight: 600, color: "#0f172a" }}>{Math.min(currentPage * itemsPerPage, totalItems)}</span> dari total <span style={{ fontWeight: 600, color: "#0f172a" }}>{totalItems}</span> data
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="btn-icon"
+                  style={{ padding: "0.4rem", border: "1px solid #cbd5e1", borderRadius: "0.4rem", background: currentPage === 1 ? "#f8fafc" : "#fff", opacity: currentPage === 1 ? 0.5 : 1, cursor: currentPage === 1 ? "not-allowed" : "pointer" }}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                
+                <div style={{ display: "flex", alignItems: "center", margin: "0 0.5rem" }}>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => setCurrentPage(page)}
+                      style={{
+                        width: "32px",
+                        height: "32px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderRadius: "0.4rem",
+                        border: "none",
+                        background: currentPage === page ? "#0f172a" : "transparent",
+                        color: currentPage === page ? "#fff" : "#64748b",
+                        fontSize: "0.85rem",
+                        fontWeight: currentPage === page ? 600 : 500,
+                        cursor: "pointer",
+                        transition: "all 0.2s"
+                      }}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="btn-icon"
+                  style={{ padding: "0.4rem", border: "1px solid #cbd5e1", borderRadius: "0.4rem", background: currentPage === totalPages ? "#f8fafc" : "#fff", opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? "not-allowed" : "pointer" }}
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
             </div>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <button
-                type="button"
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                style={{
-                  padding: "0.4rem 0.8rem",
-                  fontSize: "0.85rem",
-                  background: "#fff",
-                  color: "#0f172a",
-                  fontWeight: 500,
-                  border: "1px solid #cbd5e1",
-                  borderRadius: "0.375rem",
-                  cursor: currentPage === 1 ? "not-allowed" : "pointer",
-                  opacity: currentPage === 1 ? 0.5 : 1,
-                  transition: "all 0.2s"
-                }}
-              >
-                &lt; Sebelumnya
-              </button>
-              <button
-                type="button"
-                onClick={() => setCurrentPage(p => Math.min(Math.ceil(Object.keys(groupedShifts).length / itemsPerPage), p + 1))}
-                disabled={currentPage === Math.ceil(Object.keys(groupedShifts).length / itemsPerPage)}
-                style={{
-                  padding: "0.4rem 0.8rem",
-                  fontSize: "0.85rem",
-                  background: "#fff",
-                  color: "#0f172a",
-                  fontWeight: 500,
-                  border: "1px solid #cbd5e1",
-                  borderRadius: "0.375rem",
-                  cursor: currentPage === Math.ceil(Object.keys(groupedShifts).length / itemsPerPage) ? "not-allowed" : "pointer",
-                  opacity: currentPage === Math.ceil(Object.keys(groupedShifts).length / itemsPerPage) ? 0.5 : 1,
-                  transition: "all 0.2s"
-                }}
-              >
-                Selanjutnya &gt;
-              </button>
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* Modal Statistik AI */}

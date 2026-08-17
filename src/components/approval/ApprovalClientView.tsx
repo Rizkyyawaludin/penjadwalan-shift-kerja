@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Check, X, ShieldAlert, AlertTriangle, CalendarDays } from "lucide-react";
+import { Check, X, ShieldAlert, AlertTriangle, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { approveDraftSchedules, rejectDraftSchedules } from "@/actions/approval";
 
 interface DraftShift {
@@ -27,6 +27,8 @@ export default function ApprovalClientView({
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{type: "success" | "error", text: string} | null>(null);
   const [viewMode, setViewMode] = useState<"matrix" | "list">("matrix");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 1;
 
   const handleApprove = async () => {
     if (!confirm("Anda yakin ingin MENYETUJUI semua jadwal draft ini?")) return;
@@ -239,7 +241,7 @@ export default function ApprovalClientView({
             </table>
           </div>
         ) : (
-          Object.entries(groupedByDate).map(([date, shiftsOfDay]) => {
+          Object.entries(groupedByDate).slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(([date, shiftsOfDay]) => {
             const readableDate = new Date(date).toLocaleDateString("id-ID", {
               weekday: "long",
               year: "numeric",
@@ -289,6 +291,66 @@ export default function ApprovalClientView({
           })
         )}
       </div>
+
+      {viewMode === "list" && Object.keys(groupedByDate).length > itemsPerPage && (() => {
+        const totalItems = Object.keys(groupedByDate).length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        return (
+          <div className="no-print" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.5rem", borderTop: "1px solid #e2e8f0", background: "#f8fafc", flexWrap: "wrap", gap: "1rem", borderRadius: "0.5rem" }}>
+            <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
+              Menampilkan <span style={{ fontWeight: 600, color: "#0f172a" }}>{(currentPage - 1) * itemsPerPage + 1}</span> - <span style={{ fontWeight: 600, color: "#0f172a" }}>{Math.min(currentPage * itemsPerPage, totalItems)}</span> dari total <span style={{ fontWeight: 600, color: "#0f172a" }}>{totalItems}</span> data
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="btn-icon"
+                style={{ padding: "0.4rem", border: "1px solid #cbd5e1", borderRadius: "0.4rem", background: currentPage === 1 ? "#f8fafc" : "#fff", opacity: currentPage === 1 ? 0.5 : 1, cursor: currentPage === 1 ? "not-allowed" : "pointer" }}
+              >
+                <ChevronLeft size={16} />
+              </button>
+              
+              <div style={{ display: "flex", alignItems: "center", margin: "0 0.5rem" }}>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setCurrentPage(page)}
+                    style={{
+                      width: "32px",
+                      height: "32px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: "0.4rem",
+                      border: "none",
+                      background: currentPage === page ? "#0f172a" : "transparent",
+                      color: currentPage === page ? "#fff" : "#64748b",
+                      fontSize: "0.85rem",
+                      fontWeight: currentPage === page ? 600 : 500,
+                      cursor: "pointer",
+                      transition: "all 0.2s"
+                    }}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="btn-icon"
+                style={{ padding: "0.4rem", border: "1px solid #cbd5e1", borderRadius: "0.4rem", background: currentPage === totalPages ? "#f8fafc" : "#fff", opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? "not-allowed" : "pointer" }}
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

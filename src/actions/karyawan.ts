@@ -20,6 +20,14 @@ export async function getEmployees() {
         _count: {
           select: { shifts: true },
         },
+        leaves: {
+          select: {
+            startDate: true,
+            endDate: true,
+            type: true,
+          },
+          orderBy: { startDate: "asc" },
+        }
       },
     });
 

@@ -27,7 +27,7 @@ async function main() {
   } else {
     console.log("Admin account already exists. Skipping admin creation.");
   }
-  
+
   const existingHeadNurse = await prisma.admin.findUnique({
     where: { email: "kepalaruangan@admin.com" },
   });

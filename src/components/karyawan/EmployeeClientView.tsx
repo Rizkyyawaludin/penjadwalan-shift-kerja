@@ -222,6 +222,7 @@ export default function EmployeeClientView({
               <th>Pengalaman Kerja</th>
               <th>Departemen / Unit</th>
               <th>Shift Assigned</th>
+              <th>Status Cuti</th>
               <th style={{ textAlign: "right", paddingRight: "1.5rem" }}>Aksi</th>
             </tr>
           </thead>
@@ -301,6 +302,31 @@ export default function EmployeeClientView({
                       <Calendar size={15} style={{ color: "#64748b" }} />
                       <span>{emp._count.shifts} shift</span>
                     </div>
+                  </td>
+                  <td>
+                    {emp.leaves && emp.leaves.length > 0 ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                        {emp.leaves.map((leave: any, idx: number) => {
+                          const start = new Date(leave.startDate).toLocaleDateString("id-ID", { day: 'numeric', month: 'short' });
+                          const end = new Date(leave.endDate).toLocaleDateString("id-ID", { day: 'numeric', month: 'short' });
+                          return (
+                            <span key={idx} style={{ 
+                              fontSize: "0.75rem", 
+                              padding: "0.15rem 0.4rem", 
+                              background: "#fee2e2", 
+                              color: "#b91c1c", 
+                              borderRadius: "0.25rem",
+                              fontWeight: 500,
+                              whiteSpace: "nowrap"
+                            }}>
+                              {start} - {end}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}>-</span>
+                    )}
                   </td>
                   <td style={{ textAlign: "right", paddingRight: "1.25rem" }}>
                     <div style={{ display: "inline-flex", gap: "0.35rem" }}>

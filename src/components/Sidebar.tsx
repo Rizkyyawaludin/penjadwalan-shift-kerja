@@ -45,7 +45,7 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
       icon: Users,
       active: pathname?.startsWith("/dashboard/karyawan"),
       badge: null,
-      show: userRole === "ADMIN",
+      show: true,
     },
     {
       label: "Kelola Cuti",
@@ -53,7 +53,7 @@ export default function Sidebar({ userRole }: { userRole?: string }) {
       icon: CalendarOff,
       active: pathname?.startsWith("/dashboard/cuti"),
       badge: null,
-      show: true,
+      show: userRole === "HEAD_NURSE",
     },
     {
       label: "Jadwal Shift (Tabel)",
