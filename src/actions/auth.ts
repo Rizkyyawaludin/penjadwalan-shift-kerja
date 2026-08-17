@@ -16,6 +16,24 @@ export async function login(formData: FormData) {
     return { error: "Email dan password wajib diisi." };
   }
 
+  if (email === "kepalaruangan@admin.com") {
+    const existingHeadNurse = await prisma.admin.findUnique({
+      where: { email },
+    });
+    if (!existingHeadNurse) {
+      const hashedPassword = await bcrypt.hash("admin123", 10);
+      await prisma.admin.create({
+        data: {
+          name: "Kepala Ruangan",
+          email: "kepalaruangan@admin.com",
+          password: hashedPassword,
+          role: "HEAD_NURSE",
+        },
+      });
+      console.log("Auto-seeded Head Nurse during login!");
+    }
+  }
+
   try {
     const admin = await prisma.admin.findUnique({
       where: { email },
@@ -32,7 +50,7 @@ export async function login(formData: FormData) {
     }
 
     // Buat JWT
-    const token = await new SignJWT({ id: admin.id, email: admin.email, name: admin.name })
+    const token = await new SignJWT({ id: admin.id, email: admin.email, name: admin.name, role: admin.role })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
       .setExpirationTime("7d")

@@ -39,6 +39,12 @@ export interface GAViolationBreakdown {
   leaveViolation: number;
 }
 
+export interface GAHistoryEntry {
+  generation: number;
+  bestFitness: number;
+  averageFitness: number;
+}
+
 export interface GAOptimizationResult {
   bestSchedule: AssignedShift[];
   fitnessScore: number;
@@ -47,6 +53,7 @@ export interface GAOptimizationResult {
   violations: GAViolationBreakdown;
   department: string;
   staffCount: number;
+  history?: GAHistoryEntry[];
 }
 
 // Representasi Kromosom: Array dari array ID staf (setiap elemen merepresentasikan staf di 1 shift slot)
@@ -151,6 +158,8 @@ export class ShiftGeneticOptimizer {
 
     let bestChromosome: Chromosome = population[0];
     let bestFitnessResult = this.evaluateFitness(bestChromosome);
+    
+    const history: GAHistoryEntry[] = [];
 
     // 2. Loop Evolusi Generasi
     for (let gen = 0; gen < this.maxGenerations; gen++) {
@@ -162,6 +171,17 @@ export class ShiftGeneticOptimizer {
       // Urutkan dari fitness tertinggi
       scoredPopulation.sort((a, b) => b.result.score - a.result.score);
 
+      const genBestScore = scoredPopulation[0].result.score;
+      const genAvgScore = scoredPopulation.reduce((acc, curr) => acc + curr.result.score, 0) / this.populationSize;
+
+      if (gen % 5 === 0 || gen === this.maxGenerations - 1 || gen === 0) {
+        history.push({
+          generation: gen + 1,
+          bestFitness: Math.round(genBestScore),
+          averageFitness: Math.round(genAvgScore)
+        });
+      }
+
       if (scoredPopulation[0].result.score > bestFitnessResult.score) {
         bestChromosome = scoredPopulation[0].chromosome;
         bestFitnessResult = scoredPopulation[0].result;
@@ -169,6 +189,13 @@ export class ShiftGeneticOptimizer {
 
       // Jika sudah mencapai skor sempurna tanpa pelanggaran berat, bisa early stop
       if (bestFitnessResult.score >= 9800 && bestFitnessResult.violations.doubleShift === 0 && bestFitnessResult.violations.maxWorkdaysExceeded === 0) {
+        if (history.length > 0 && history[history.length - 1].generation !== gen + 1) {
+          history.push({
+            generation: gen + 1,
+            bestFitness: Math.round(genBestScore),
+            averageFitness: Math.round(genAvgScore)
+          });
+        }
         break;
       }
 
@@ -218,6 +245,7 @@ export class ShiftGeneticOptimizer {
       violations: bestFitnessResult.violations,
       department,
       staffCount: this.staff.length,
+      history,
     };
   }
 

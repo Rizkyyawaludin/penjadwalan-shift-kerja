@@ -48,6 +48,9 @@ export default function LeaveFormModal({ employees, onClose, onCreated }: LeaveF
     });
 
     if (result.success) {
+      if (result.message) {
+        alert(result.message);
+      }
       const emp = employees.find((e) => e.id === employeeId);
       onCreated({
         id: `temp_${Date.now()}`,

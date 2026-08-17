@@ -205,6 +205,36 @@ export default function GAStatsModal({ isOpen, onClose, result }: GAStatsModalPr
 
         </div>
 
+        {/* History Data Log untuk Skripsi */}
+        {result.history && result.history.length > 0 && (
+          <div style={{ border: "1px solid #e2e8f0", borderRadius: "0.75rem", overflow: "hidden", margin: "1.25rem 1.25rem 0 1.25rem" }}>
+            <div style={{ background: "#f8fafc", padding: "0.6rem 1rem", fontSize: "0.8rem", fontWeight: 700, color: "#334155", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>Riwayat Evolusi Generasi (Data Pengujian Bab 4)</span>
+              <span style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 400 }}>Salin data ini untuk skripsi</span>
+            </div>
+            <div style={{ maxHeight: "180px", overflowY: "auto", background: "#ffffff" }}>
+              <table style={{ width: "100%", fontSize: "0.8rem", textAlign: "left", borderCollapse: "collapse" }}>
+                <thead style={{ position: "sticky", top: 0, background: "#f1f5f9" }}>
+                  <tr>
+                    <th style={{ padding: "0.5rem 1rem", borderBottom: "1px solid #e2e8f0" }}>Generasi</th>
+                    <th style={{ padding: "0.5rem 1rem", borderBottom: "1px solid #e2e8f0" }}>Fitness Terbaik</th>
+                    <th style={{ padding: "0.5rem 1rem", borderBottom: "1px solid #e2e8f0" }}>Rata-rata Fitness</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.history.map((h, i) => (
+                    <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                      <td style={{ padding: "0.5rem 1rem" }}>{h.generation}</td>
+                      <td style={{ padding: "0.5rem 1rem", fontWeight: 600, color: "#0f172a" }}>{h.bestFitness}</td>
+                      <td style={{ padding: "0.5rem 1rem", color: "#64748b" }}>{h.averageFitness}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* Modal Footer */}
         <div className="modal-footer" style={{ background: "#f8fafc" }}>
           <button

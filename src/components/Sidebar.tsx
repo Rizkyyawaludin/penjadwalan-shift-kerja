@@ -14,11 +14,12 @@ import {
   Settings,
   Clock,
   ShieldCheck,
-  LogOut
+  LogOut,
+  CheckSquare
 } from "lucide-react";
 import { logout } from "@/actions/auth";
 
-export default function Sidebar() {
+export default function Sidebar({ userRole }: { userRole?: string }) {
   const pathname = usePathname();
 
   const navItems = [
@@ -28,6 +29,15 @@ export default function Sidebar() {
       icon: LayoutDashboard,
       active: pathname === "/dashboard",
       badge: null,
+      show: true,
+    },
+    {
+      label: "Approval Jadwal",
+      href: "/dashboard/approval",
+      icon: CheckSquare,
+      active: pathname?.startsWith("/dashboard/approval"),
+      badge: "Draft",
+      show: userRole === "HEAD_NURSE",
     },
     {
       label: "Kelola Karyawan",
@@ -35,6 +45,7 @@ export default function Sidebar() {
       icon: Users,
       active: pathname?.startsWith("/dashboard/karyawan"),
       badge: null,
+      show: userRole === "ADMIN",
     },
     {
       label: "Kelola Cuti",
@@ -42,6 +53,7 @@ export default function Sidebar() {
       icon: CalendarOff,
       active: pathname?.startsWith("/dashboard/cuti"),
       badge: null,
+      show: true,
     },
     {
       label: "Jadwal Shift (Tabel)",
@@ -49,6 +61,7 @@ export default function Sidebar() {
       icon: ListTodo,
       active: pathname === "/dashboard/jadwal",
       badge: null,
+      show: userRole === "ADMIN",
     },
 
     {
@@ -57,15 +70,9 @@ export default function Sidebar() {
       icon: FileText,
       active: pathname?.startsWith("/dashboard/laporan"),
       badge: null,
-    },
-    {
-      label: "Pengaturan",
-      href: "/dashboard/pengaturan",
-      icon: Settings,
-      active: pathname?.startsWith("/dashboard/pengaturan"),
-      badge: null,
-    },
-  ];
+      show: true,
+    }
+  ].filter(item => item.show);
 
   return (
     <aside className="sidebar-nav glass-sidebar">

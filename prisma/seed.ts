@@ -1,27 +1,50 @@
-import { prisma } from "../src/lib/prisma";
+import * as dotenv from 'dotenv';
+dotenv.config();
+dotenv.config({ path: '.env.local' });
+
+import { PrismaClient } from "../src/generated/prisma/client";
 import * as bcrypt from "bcryptjs";
+
+const prisma = new PrismaClient();
 
 async function main() {
   const existingAdmin = await prisma.admin.findFirst();
 
-  if (existingAdmin) {
-    console.log("Admin account already exists. Skipping seeder.");
-    return;
-  }
-
   const hashedPassword = await bcrypt.hash("admin123", 10);
 
-  const admin = await prisma.admin.create({
-    data: {
-      name: "Super Admin",
-      email: "admin@admin.com",
-      password: hashedPassword,
-    },
+  if (!existingAdmin) {
+    const admin = await prisma.admin.create({
+      data: {
+        name: "Super Admin",
+        email: "admin@admin.com",
+        password: hashedPassword,
+      },
+    });
+
+    console.log("Default admin created successfully!");
+    console.log("Email: admin@admin.com");
+    console.log("Password: admin123");
+  } else {
+    console.log("Admin account already exists. Skipping admin creation.");
+  }
+  
+  const existingHeadNurse = await prisma.admin.findUnique({
+    where: { email: "kepalaruangan@admin.com" },
   });
 
-  console.log("Default admin created successfully!");
-  console.log("Email: admin@admin.com");
-  console.log("Password: admin123");
+  if (!existingHeadNurse) {
+    await prisma.admin.create({
+      data: {
+        name: "Kepala Ruangan",
+        email: "kepalaruangan@admin.com",
+        password: hashedPassword,
+        role: "HEAD_NURSE",
+      },
+    });
+    console.log("Head Nurse created successfully!");
+    console.log("Email: kepalaruangan@admin.com");
+    console.log("Password: admin123");
+  }
 }
 
 main()

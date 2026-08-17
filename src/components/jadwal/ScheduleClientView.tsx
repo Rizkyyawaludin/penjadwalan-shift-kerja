@@ -160,9 +160,8 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
       } else if (res.result) {
         setGaResult(res.result);
         setIsModalOpen(true);
-        setDraftShifts(res.draftShifts || []);
-        setIsDraftMode(true);
-        setNotification({ type: "success", message: `Jadwal optimal untuk ${daysCount} hari berhasil dibuat. Silakan periksa atau ubah, lalu klik Simpan & Konfirmasi.` });
+        setNotification({ type: "success", message: `Jadwal berhasil di-generate dan otomatis diteruskan ke Kepala Ruangan untuk persetujuan (Status: DRAFT).` });
+        await refreshData(targetDept);
       }
     } catch (err) {
       setNotification({ type: "error", message: "Terjadi kesalahan koneksi server." });
@@ -242,7 +241,7 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
   };
 
   // Kelompokkan shift berdasarkan tanggal untuk tampilan tabel rapi
-  const displayShifts = isDraftMode ? draftShifts : shifts;
+  const displayShifts = shifts;
   const groupedShifts = displayShifts.reduce((acc: Record<string, any[]>, shift) => {
     const dateKey = new Date(shift.startTime).toISOString().split("T")[0];
     if (!acc[dateKey]) acc[dateKey] = [];
@@ -706,82 +705,57 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
           <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
             <Calendar size={18} color="#0f172a" />
             <h3 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f172a", margin: 0 }}>
-              {isDraftMode ? "Mode Draft: Pratinjau Jadwal" : "Daftar Jadwal Shift Terbentuk"} ({displayShifts.length} Slot)
+              Daftar Jadwal Shift Terbentuk ({displayShifts.length} Slot)
             </h3>
           </div>
 
-          {isDraftMode ? (
-            <div style={{ display: "flex", gap: "0.5rem" }}>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            {gaResult && (
               <button
                 type="button"
-                className="btn btn-danger"
-                onClick={handleCancelDraft}
-                disabled={loadingSaveDraft}
-                style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", background: "#fff", color: "var(--danger)", border: "1px solid #fecaca" }}
+                className="btn btn-secondary"
+                onClick={() => setIsModalOpen(true)}
+                style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem" }}
               >
-                <XCircle size={14} />
-                <span>Batalkan</span>
+                <Award size={14} />
+                <span>Lihat Laporan AI</span>
               </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleConfirmDraft}
-                disabled={loadingSaveDraft}
-                style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", background: "#10b981", borderColor: "#10b981" }}
-              >
-                {loadingSaveDraft ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                <span>Konfirmasi & Simpan</span>
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              {gaResult && (
+            )}
+            {shifts.length > 0 && (
+              <>
+                <div className="no-print" style={{ display: "flex", gap: "0.25rem", background: "#f1f5f9", padding: "0.25rem", borderRadius: "0.5rem", marginRight: "0.5rem" }}>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("matrix")}
+                    style={{ padding: "0.3rem 0.6rem", fontSize: "0.75rem", fontWeight: 600, background: viewMode === "matrix" ? "#fff" : "transparent", color: viewMode === "matrix" ? "#0f172a" : "#64748b", borderRadius: "0.35rem", border: "none", boxShadow: viewMode === "matrix" ? "0 1px 2px rgba(0,0,0,0.05)" : "none", cursor: "pointer" }}
+                  >Matriks</button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("list")}
+                    style={{ padding: "0.3rem 0.6rem", fontSize: "0.75rem", fontWeight: 600, background: viewMode === "list" ? "#fff" : "transparent", color: viewMode === "list" ? "#0f172a" : "#64748b", borderRadius: "0.35rem", border: "none", boxShadow: viewMode === "list" ? "0 1px 2px rgba(0,0,0,0.05)" : "none", cursor: "pointer" }}
+                  >Daftar Baris</button>
+                </div>
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  onClick={() => setIsModalOpen(true)}
-                  style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem" }}
+                  onClick={handleExportCSV}
+                  style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", background: "#fff", color: "#0f172a", border: "1px solid #cbd5e1" }}
                 >
-                  <Award size={14} />
-                  <span>Lihat Laporan AI</span>
+                  <Download size={14} />
+                  <span>Ekspor CSV</span>
                 </button>
-              )}
-              {shifts.length > 0 && (
-                <>
-                  <div className="no-print" style={{ display: "flex", gap: "0.25rem", background: "#f1f5f9", padding: "0.25rem", borderRadius: "0.5rem", marginRight: "0.5rem" }}>
-                    <button
-                      type="button"
-                      onClick={() => setViewMode("matrix")}
-                      style={{ padding: "0.3rem 0.6rem", fontSize: "0.75rem", fontWeight: 600, background: viewMode === "matrix" ? "#fff" : "transparent", color: viewMode === "matrix" ? "#0f172a" : "#64748b", borderRadius: "0.35rem", border: "none", boxShadow: viewMode === "matrix" ? "0 1px 2px rgba(0,0,0,0.05)" : "none", cursor: "pointer" }}
-                    >Matriks</button>
-                    <button
-                      type="button"
-                      onClick={() => setViewMode("list")}
-                      style={{ padding: "0.3rem 0.6rem", fontSize: "0.75rem", fontWeight: 600, background: viewMode === "list" ? "#fff" : "transparent", color: viewMode === "list" ? "#0f172a" : "#64748b", borderRadius: "0.35rem", border: "none", boxShadow: viewMode === "list" ? "0 1px 2px rgba(0,0,0,0.05)" : "none", cursor: "pointer" }}
-                    >Daftar Baris</button>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={handleExportCSV}
-                    style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", background: "#fff", color: "#0f172a", border: "1px solid #cbd5e1" }}
-                  >
-                    <Download size={14} />
-                    <span>Ekspor CSV</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={handlePrintPDF}
-                    style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", background: "#2563eb", borderColor: "#2563eb" }}
-                  >
-                    <Printer size={14} />
-                    <span>Cetak PDF</span>
-                  </button>
-                </>
-              )}
-            </div>
-          )}
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handlePrintPDF}
+                  style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", background: "#2563eb", borderColor: "#2563eb" }}
+                >
+                  <Printer size={14} />
+                  <span>Cetak PDF</span>
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {displayShifts.length === 0 ? (
@@ -826,7 +800,7 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
                       if (shiftTitle) {
                         if (shiftTitle.includes("Pagi")) { bg = "#fef3c7"; textColor = "#d97706"; text = "P"; }
                         else if (shiftTitle.includes("Sore")) { bg = "#e0f2fe"; textColor = "#0284c7"; text = "S"; }
-                        else if (shiftTitle.includes("Malam")) { bg = "#1e293b"; textColor = "#ffffff"; text = "M"; }
+                        else if (shiftTitle.includes("Malam")) { bg = "#000000"; textColor = "#ffffff"; text = "M"; }
                       }
                       return (
                         <td key={dateKey} style={{ padding: "0.4rem", textAlign: "center", borderRight: "1px dashed #f1f5f9" }}>
@@ -885,8 +859,8 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
                             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                               <span style={{
                                 padding: "0.25rem 0.6rem", borderRadius: "0.35rem", fontSize: "0.75rem", fontWeight: 700,
-                                background: shift.title.includes("Pagi") ? "#fef3c7" : shift.title.includes("Sore") ? "#e0f2fe" : "#1e293b",
-                                color: shift.title.includes("Pagi") ? "#d97706" : shift.title.includes("Sore") ? "#0284c7" : "#ffffff"
+                                background: shift.title.includes("Pagi") ? "#e0f2fe" : shift.title.includes("Sore") ? "#fef3c7" : "#000000",
+                                color: shift.title.includes("Pagi") ? "#0369a1" : shift.title.includes("Sore") ? "#b45309" : "#ffffff"
                               }}>
                                 {shift.title}
                               </span>

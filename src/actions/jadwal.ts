@@ -126,7 +126,8 @@ export async function generateAutomaticSchedule(params: GenerateScheduleParams):
       generationsRun: 0, 
       executionTimeMs: 0,
       department: "ALL",
-      staffCount: dbStaff.length
+      staffCount: dbStaff.length,
+      history: []
     };
 
     for (const dept of deptsToRun) {
@@ -242,13 +243,23 @@ export async function generateAutomaticSchedule(params: GenerateScheduleParams):
       combinedResult.violations.leaveViolation += gaResult.violations.leaveViolation;
       combinedResult.generationsRun = Math.max(combinedResult.generationsRun, gaResult.generationsRun);
       combinedResult.executionTimeMs += gaResult.executionTimeMs;
+      
+      if (gaResult.history && gaResult.history.length > 0) {
+        combinedResult.history = gaResult.history;
+      }
     }
 
     if (allDraftShifts.length === 0) {
       return { success: false, error: "Algoritma Genetika gagal menghasilkan konfigurasi jadwal yang valid untuk departemen mana pun." };
     }
 
-    return { success: true, result: combinedResult, draftShifts: allDraftShifts };
+    // Simpan otomatis sebagai DRAFT tanpa perlu konfirmasi manual dari Admin
+    const saveResult = await saveDraftSchedule(allDraftShifts);
+    if (!saveResult.success) {
+      return { success: false, error: "Jadwal berhasil dibuat tapi gagal disimpan: " + saveResult.error };
+    }
+
+    return { success: true, result: combinedResult };
   } catch (error) {
     console.error("Gagal mengeksekusi penjadwalan otomatis Algoritma Genetika:", error);
     return { success: false, error: "Terjadi kesalahan sistem saat menjalankan optimasi jadwal AI." };
@@ -314,7 +325,7 @@ export async function saveDraftSchedule(draftShifts: any[]) {
       startTime: new Date(item.startTime),
       endTime: new Date(item.endTime),
       employeeId: item.employeeId,
-      status: "SCHEDULED",
+      status: "DRAFT",
     }));
 
     await prisma.shift.createMany({
