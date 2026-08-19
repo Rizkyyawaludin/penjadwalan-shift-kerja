@@ -31,6 +31,7 @@ export interface EmployeeData {
   _count: {
     shifts: number;
   };
+  leaves?: { startDate: Date | string; endDate: Date | string; type: string }[];
 }
 
 interface EmployeeClientViewProps {
@@ -280,7 +281,6 @@ export default function EmployeeClientView({
                         <div style={{ fontWeight: 600, color: "#2563eb", textDecoration: "underline", textUnderlineOffset: "2px" }}>
                           {emp.name}
                         </div>
-                        <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>ID: {emp.id.slice(-6)}</div>
                       </div>
                     </div>
                   </td>

@@ -847,9 +847,9 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
                         </td>
                       </tr>
                       {groupedShifts[dateKey].map((shift: any) => (
-                        <tr 
-                          key={shift.id} 
-                          className={rowClass} 
+                        <tr
+                          key={shift.id}
+                          className={rowClass}
                           style={{ borderBottom: "1px solid #f1f5f9", transition: "background 0.15s" }}
                           onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
                           onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
@@ -964,7 +964,7 @@ export default function ScheduleClientView({ initialShifts, initialStats, initia
                 >
                   <ChevronLeft size={16} />
                 </button>
-                
+
                 <div style={{ display: "flex", alignItems: "center", margin: "0 0.5rem" }}>
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                     <button
