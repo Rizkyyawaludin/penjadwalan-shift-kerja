@@ -302,7 +302,7 @@ export class ShiftGeneticOptimizer {
         return Math.random() - 0.5; // Random untuk variasi
       });
 
-      // Pass 1: Prioritaskan yang punya Rest Gap 8 jam & Belum melebihi Max Shifts
+      // Pass 1: Prioritaskan yang punya Rest Gap 16 jam & Belum melebihi Max Shifts
       for (const emp of availableForSlot) {
         if (assigned.length >= slot.requiredCount) break;
         if (staffShiftCountMap[emp.id] >= this.getMaxShiftsForStaff(emp)) continue;
@@ -312,7 +312,7 @@ export class ShiftGeneticOptimizer {
           const gap1 = slot.startTime.getTime() - assignedSlot.endTime.getTime();
           const gap2 = assignedSlot.startTime.getTime() - slot.endTime.getTime();
           const gap = Math.max(gap1, gap2);
-          if (gap < 8 * 60 * 60 * 1000) {
+          if (gap < 16 * 60 * 60 * 1000) {
             hasRestGap = false;
             break;
           }
@@ -337,7 +337,7 @@ export class ShiftGeneticOptimizer {
             const gap1 = slot.startTime.getTime() - assignedSlot.endTime.getTime();
             const gap2 = assignedSlot.startTime.getTime() - slot.endTime.getTime();
             const gap = Math.max(gap1, gap2);
-            if (gap < 8 * 60 * 60 * 1000) {
+            if (gap < 16 * 60 * 60 * 1000) {
               hasRestGap = false;
               break;
             }
@@ -454,7 +454,7 @@ export class ShiftGeneticOptimizer {
       }
     }
 
-    // Hard Constraint 1.5: Minimum Rest Time (8 hours) check
+    // Hard Constraint 1.5: Minimum Rest Time (16 hours) check
     for (const emp of this.staff) {
       const slots = empSlotsMap[emp.id];
       // Urutkan slot per perawat berdasarkan waktu mulai secara kronologis
@@ -463,7 +463,7 @@ export class ShiftGeneticOptimizer {
       }
       for (let i = 1; i < slots.length; i++) {
         const gapHours = (slots[i].startTime.getTime() - slots[i - 1].endTime.getTime()) / (1000 * 60 * 60);
-        if (gapHours < 8) {
+        if (gapHours < 16) {
           violations.doubleShift++;
           score -= 5000;
         }

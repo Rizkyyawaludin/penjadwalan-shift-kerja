@@ -190,7 +190,7 @@ export class ShiftGeneticOptimizerInteger {
       // Urutkan berdasarkan waktu mulai
       assignedSlots.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 
-      // Cek jarak istirahat antar shift minimal 8 jam
+      // Cek jarak istirahat antar shift minimal 16 jam
       for (let k = 1; k < assignedSlots.length; k++) {
         const gapMs = assignedSlots[k].startTime.getTime() - assignedSlots[k - 1].endTime.getTime();
         const gapHours = gapMs / (1000 * 60 * 60);
@@ -198,7 +198,7 @@ export class ShiftGeneticOptimizerInteger {
         if (assignedSlots[k].date === assignedSlots[k-1].date) {
            violations.doubleShift++;
            score -= 5000;
-        } else if (gapHours < 8) {
+        } else if (gapHours < 16) {
            violations.doubleShift++; 
            score -= 5000;
         }
