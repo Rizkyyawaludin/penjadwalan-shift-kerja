@@ -174,12 +174,12 @@ async function autoReassignShifts(employeeId: string, department: string | null,
       const hasShiftSameDay = c.shifts.some(s => s.startTime.toISOString().split('T')[0] === shiftDateStr);
       if (hasShiftSameDay) score -= 10000;
 
-      // Kriteria 2: Harus ada rest gap 8 jam
+      // Kriteria 2: Harus ada rest gap 16 jam
       let hasRestGap = true;
       for (const s of c.shifts) {
         const gap1 = shift.startTime.getTime() - s.endTime.getTime();
         const gap2 = s.startTime.getTime() - shift.endTime.getTime();
-        if (Math.max(gap1, gap2) < 8 * 60 * 60 * 1000) {
+        if (Math.max(gap1, gap2) < 16 * 60 * 60 * 1000) {
           hasRestGap = false;
           break;
         }

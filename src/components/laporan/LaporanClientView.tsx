@@ -70,12 +70,11 @@ export default function LaporanClientView({ initialShifts, employees }: LaporanC
   }, [initialShifts, employees, selectedMonth, selectedDept]);
 
   const handleExportCSV = () => {
-    const headers = ["Nama Karyawan", "Departemen", "ID Staf", "Total Shift", "Total Jam Kerja"];
+    const headers = ["Nama Karyawan", "Departemen", "Total Shift", "Total Jam Kerja"];
     
     const rows = workloadData.map(data => [
       `"${data.employee.name}"`,
       `"${data.employee.department || "Umum"}"`,
-      `"${data.employee.kaggleStaffId || "-"}"`,
       data.totalShifts.toString(),
       data.totalHours.toFixed(1)
     ]);
@@ -233,7 +232,6 @@ export default function LaporanClientView({ initialShifts, employees }: LaporanC
               <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", textAlign: "left" }}>
                 <th style={{ padding: "0.85rem 1.25rem", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Nama Karyawan</th>
                 <th style={{ padding: "0.85rem 1.25rem", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Departemen</th>
-                <th style={{ padding: "0.85rem 1.25rem", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Kaggle ID</th>
                 <th style={{ padding: "0.85rem 1.25rem", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", textAlign: "center" }}>Total Shift</th>
                 <th style={{ padding: "0.85rem 1.25rem", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", textAlign: "right" }}>Total Jam Kerja</th>
               </tr>
@@ -241,7 +239,7 @@ export default function LaporanClientView({ initialShifts, employees }: LaporanC
             <tbody>
               {workloadData.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ padding: "3rem", textAlign: "center", color: "#64748b", fontSize: "0.9rem" }}>
+                  <td colSpan={4} style={{ padding: "3rem", textAlign: "center", color: "#64748b", fontSize: "0.9rem" }}>
                     Tidak ada data beban kerja untuk filter yang dipilih.
                   </td>
                 </tr>
@@ -262,9 +260,6 @@ export default function LaporanClientView({ initialShifts, employees }: LaporanC
                       }}>
                         {employee.department || "Umum"}
                       </span>
-                    </td>
-                    <td style={{ padding: "0.85rem 1.25rem", fontSize: "0.8rem", color: "#64748b", fontFamily: "monospace" }}>
-                      {employee.kaggleStaffId || "-"}
                     </td>
                     <td style={{ padding: "0.85rem 1.25rem", textAlign: "center", fontWeight: 600 }}>
                       <span style={{ 
