@@ -30,8 +30,7 @@ const LAST_NAMES = [
 function generateRealisticName(id: string, department: string, index: number): string {
   const first = FIRST_NAMES[(index + id.charCodeAt(id.length - 1)) % FIRST_NAMES.length];
   const last = LAST_NAMES[(index + id.charCodeAt(id.length - 2)) % LAST_NAMES.length];
-  const prefix = department === "General Medicine" || department === "Pediatrics" ? "Dr." : "Ns.";
-  return `${prefix} ${first} ${last} (${id})`;
+  return `${first} ${last} (${id})`;
 }
 
 export async function getDatasetStats(): Promise<{ success: boolean; data?: KaggleDatasetStats; error?: string }> {
@@ -113,8 +112,8 @@ export async function importKaggleDataset(targetDepartment?: string, limitPerDep
 
       const staffId = cols[0]; // S00000
       const department = cols[1]; // Pediatrics, ER, dll
-      const shiftDuration = parseInt(cols[2], 10) || 8;
-      const workdaysPerMonth = parseInt(cols[3], 10) || 20;
+      const shiftDuration = 8;
+      const workdaysPerMonth = 22;
       const satisfactionScore = parseFloat(cols[4]) || 3.5;
       const experienceYears = parseInt(cols[5], 10) || 5;
 
